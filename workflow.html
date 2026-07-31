@@ -1,0 +1,2195 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NextGen Workflow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/motion@latest/dist/motion.js"></script>
+    <script>
+        window.motion = window.motion || window.Motion;
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --font-sans: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
+            --brand-50: #fdf2f8;
+            --brand-100: #fce7f3;
+            --brand-200: #fbcfe8;
+            --brand-300: #f9a8d4;
+            --brand-400: #f472b6;
+            --brand-500: #ec4899;
+            --brand-600: #db2777;
+            --brand-700: #be185d;
+            --surface: #fcfaf8;
+        }
+        body {
+            background-color: var(--surface);
+            color: #0f172a;
+            font-family: var(--font-sans);
+            -webkit-font-smoothing: antialiased;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border-radius: 1.5rem;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .bg-brand-50 { background-color: var(--brand-50); }
+        .bg-brand-100 { background-color: var(--brand-100); }
+        .bg-brand-500 { background-color: var(--brand-500); }
+        .bg-brand-600 { background-color: var(--brand-600); }
+        .text-brand-500 { color: var(--brand-500); }
+        .text-brand-600 { color: var(--brand-600); }
+        .border-brand-500 { border-color: var(--brand-500); }
+        .shadow-brand-200 { box-shadow: 0 10px 15px -3px rgba(236, 72, 153, 0.2); }
+    </style>
+</head>
+<body class="overflow-hidden bg-slate-50">
+    <div id="app" class="flex flex-col lg:flex-row h-screen w-screen overflow-hidden relative">
+        <!-- Top Header for Phone App UI & Navigation -->
+        <div id="topbar"></div>
+
+        <!-- Sidebar for Large Desktop Screens -->
+        <aside id="sidebar" class="hidden lg:flex w-72 h-screen bg-slate-50 border-r border-slate-200 flex-col p-6 fixed left-0 top-0 z-30">
+            <!-- Sidebar content injected dynamically -->
+        </aside>
+
+        <!-- Main Scrollable Content Area -->
+        <main id="main-content" class="flex-1 lg:ml-72 pt-16 lg:pt-6 pb-24 lg:pb-10 h-screen overflow-y-auto custom-scrollbar">
+            <!-- Page content injected dynamically -->
+        </main>
+
+        <!-- Bottom Navigation Bar for Phone App UI -->
+        <div id="bottom-nav"></div>
+    </div>
+
+    <!-- Modals Container -->
+    <div id="modals"></div>
+
+    <script>
+        // --- Default Fallback Data ---
+        const DEFAULT_DATA = {
+            projects: [
+                { projectrefno: 'PRJ-2024-001', projectname: 'Riverview Heights', projectreceiveddate: '2024-01-15', projectsitelocation: '102 Marine Drive, Sector 4', contactpersonname: 'Sarah Jenkins', contactpersonnumber: '+1 (555) 019-2834', contactemail: 'sarah.j@riverview.com', projectcompletiondate: '2024-12-15', productdetails: 'Structural concrete foundation and multi-story frame construction.', overallstatus: 'WIP', overallprogress: 45 },
+                { projectrefno: 'PRJ-2024-002', projectname: 'Metro Hub Terminal', projectreceiveddate: '2024-02-01', projectsitelocation: '88 Central Avenue', contactpersonname: 'Marcus Vance', contactpersonnumber: '+1 (555) 014-9988', contactemail: 'm.vance@metrohub.org', projectcompletiondate: '2025-06-30', productdetails: 'Steel truss roofing, glass facade cladding, and platform tiling.', overallstatus: 'Not Started', overallprogress: 0 },
+                { projectrefno: 'PRJ-2024-003', projectname: 'Oasis Residential Villa', projectreceiveddate: '2023-11-10', projectsitelocation: 'Palm Boulevard, Villa 14', contactpersonname: 'Elena Rostova', contactpersonnumber: '+1 (555) 012-4411', contactemail: 'elena.r@oasisvillas.ae', projectcompletiondate: '2024-08-20', productdetails: 'Premium interior finishing, marble flooring, smart home automation.', overallstatus: 'Completed', overallprogress: 100 }
+            ],
+            stages: [
+                { stageid: 'stg_1', stagename: 'Foundation', stageorder: 1 },
+                { stageid: 'stg_2', stagename: 'Superstructure', stageorder: 2 },
+                { stageid: 'stg_3', stagename: 'Finishing', stageorder: 3 }
+            ],
+            units: [
+                { unitid: 'un_1', stageid: 'stg_1', unitname: 'Excavation & Shoring', unitorder: 1 },
+                { unitid: 'un_2', stageid: 'stg_1', unitname: 'Piling Work', unitorder: 2 },
+                { unitid: 'un_3', stageid: 'stg_1', unitname: 'Reinforced Concrete Slab', unitorder: 3 },
+                { unitid: 'un_4', stageid: 'stg_2', unitname: 'Columns & Beams', unitorder: 1 },
+                { unitid: 'un_5', stageid: 'stg_2', unitname: 'Brickwork & Partitioning', unitorder: 2 },
+                { unitid: 'un_6', stageid: 'stg_3', unitname: 'Plastering & Painting', unitorder: 1 },
+                { unitid: 'un_7', stageid: 'stg_3', unitname: 'Flooring & Tiling', unitorder: 2 }
+            ],
+            employees: [
+                { employeeid: 'emp_1', employeename: 'Robert Chen', role: 'Project Manager', phone: '+1 (555) 018-3232', email: 'r.chen@nextgen.com' },
+                { employeeid: 'emp_2', employeename: 'David Miller', role: 'Site Engineer', phone: '+1 (555) 017-4545', email: 'd.miller@nextgen.com' },
+                { employeeid: 'emp_3', employeename: 'Aisha Rahman', role: 'Quality Inspector', phone: '+1 (555) 019-9090', email: 'a.rahman@nextgen.com' }
+            ],
+            projectStages: [
+                { id: 'ps_1', projectrefno: 'PRJ-2024-001', projectname: 'Riverview Heights', stageid: 'stg_1', stageowner: 'Robert Chen', projectstatus: 'Active', unit: 'un_1', unitstatus: 'Completed', plannedstartdate: '2024-01-20', plannedenddate: '2024-02-15', actualstartdate: '2024-01-20', actualenddate: '2024-02-12', comments: 'Excavation completed ahead of schedule.', delaydays: 0, remarks: 'Excellent progress' },
+                { id: 'ps_2', projectrefno: 'PRJ-2024-001', projectname: 'Riverview Heights', stageid: 'stg_1', stageowner: 'David Miller', projectstatus: 'Active', unit: 'un_2', unitstatus: 'Completed', plannedstartdate: '2024-02-16', plannedenddate: '2024-03-10', actualstartdate: '2024-02-16', actualenddate: '2024-03-12', comments: 'Pile drilling complete.', delaydays: 2, remarks: 'Weather delay' },
+                { id: 'ps_3', projectrefno: 'PRJ-2024-001', projectname: 'Riverview Heights', stageid: 'stg_1', stageowner: 'David Miller', projectstatus: 'Active', unit: 'un_3', unitstatus: 'WIP', plannedstartdate: '2024-03-11', plannedenddate: '2024-04-05', actualstartdate: '2024-03-15', actualenddate: '', comments: 'Curing in progress.', delaydays: 5, remarks: 'Curing time required' }
+            ],
+            dailyLogs: [
+                { date: '2024-03-20', projectrefno: 'PRJ-2024-001', projectname: 'Riverview Heights', stageid: 'stg_1', unit: 'un_3', employee: 'emp_2', workdescription: 'Poured concrete for foundation curing.', status: 'WIP' },
+                { date: '2024-03-19', projectrefno: 'PRJ-2024-001', projectname: 'Riverview Heights', stageid: 'stg_1', unit: 'un_2', employee: 'emp_3', workdescription: 'Final inspection of steel reinforcement cages.', status: 'Completed' }
+            ]
+        };
+
+        const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyQUp_zmdYG4DdAgZyiqBOUd5B7AhwBrQP7q_onF6EdfBbKjXj_sBJeoFVOm90Qrs_m/exec';
+
+        const getCached = (key, fallback) => {
+            const val = localStorage.getItem(key);
+            if (val && val !== '[]' && val !== 'undefined') {
+                try {
+                    return JSON.parse(val);
+                } catch (e) {
+                    return fallback;
+                }
+            }
+            return fallback;
+        };
+
+        // --- Application State ---
+        const state = {
+            scriptUrl: localStorage.getItem('nxg_script_url') || DEFAULT_SCRIPT_URL,
+            projects: getCached('nxg_projects', DEFAULT_DATA.projects),
+            stages: getCached('nxg_stages', DEFAULT_DATA.stages),
+            units: getCached('nxg_units', DEFAULT_DATA.units),
+            employees: getCached('nxg_employees', DEFAULT_DATA.employees),
+            projectStages: getCached('nxg_projectStages', DEFAULT_DATA.projectStages),
+            dailyLogs: getCached('nxg_dailyLogs', DEFAULT_DATA.dailyLogs),
+            stagePlannings: getCached('nxg_stagePlannings', []),
+            loading: false,
+            error: null,
+            lastSyncTime: localStorage.getItem('nxg_lastSync'),
+            currentPath: window.location.hash.slice(1) || '/',
+            lastPath: null,
+            refreshing: false,
+            showCompletedProjects: false,
+            syncStatus: 'idle', // 'idle', 'syncing', 'success', 'error'
+            mobileMenuOpen: false
+        };
+
+        // --- Data Normalization Utilities ---
+        function normalizeKey(k) {
+            return String(k || '').toLowerCase().replace(/[\s_\-]/g, '');
+        }
+
+        function getVal(obj, key) {
+            if (!obj) return '';
+            const target = normalizeKey(key);
+            
+            if (obj[key] !== undefined && obj[key] !== null) return obj[key];
+            
+            for (let k in obj) {
+                if (normalizeKey(k) === target) return obj[k];
+            }
+            
+            const mappings = {
+                'stageid': ['stageId', 'Stage ID', 'stageid', 'stage'],
+                'unitid': ['unitId', 'Unit ID', 'unitid', 'unit'],
+                'projectrefno': ['projectRefNo', 'Project Ref No', 'refno', 'projectrefno', 'project'],
+                'stagename': ['stageName', 'Stage Name', 'stagename', 'stage'],
+                'unitname': ['unitName', 'Unit Name', 'unitname', 'unit'],
+                'overallstatus': ['status', 'Overall Status', 'projectstatus', 'overallstatus'],
+                'unitstatus': ['status', 'Unit Status', 'unitstatus'],
+                'workdescription': ['description', 'Work Description', 'comments']
+            };
+            
+            if (mappings[target]) {
+                for (let altKey of mappings[target]) {
+                    const normAlt = normalizeKey(altKey);
+                    for (let k in obj) {
+                        if (normalizeKey(k) === normAlt) return obj[k];
+                    }
+                }
+            }
+            return '';
+        }
+
+        function isEqual(a, b) {
+            if (a === b) return true;
+            if (a == null || b == null) return false;
+            const sa = String(a).trim().toLowerCase();
+            const sb = String(b).trim().toLowerCase();
+            return sa === sb || sa === sb.replace(/^0+/, '') || sb === sa.replace(/^0+/, '');
+        }
+
+        function toInputDate(dateVal) {
+            if (!dateVal) return '';
+            if (typeof dateVal === 'string') {
+                if (dateVal.includes('T')) return dateVal.split('T')[0];
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateVal.trim())) return dateVal.trim();
+            }
+            try {
+                const d = new Date(dateVal);
+                if (isNaN(d.getTime())) return '';
+                return d.toISOString().split('T')[0];
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return "-";
+            try {
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) return dateString;
+                return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            } catch { return dateString; }
+        }
+
+        function getStatusColor(status) {
+            const s = (status || '').toLowerCase();
+            if (s === 'completed') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+            if (s === 'wip' || s === 'in progress') return 'bg-amber-100 text-amber-700 border-amber-200';
+            if (s === 'hold') return 'bg-rose-100 text-rose-700 border-rose-200';
+            if (s === 'not required') return 'bg-slate-100 text-slate-500 border-slate-200';
+            return 'bg-slate-100 text-slate-600 border-slate-200';
+        }
+
+        function calculateDelayDays(plannedEnd, actualEnd, lastDate) {
+            if (!plannedEnd) return 0;
+            const pEnd = new Date(plannedEnd);
+            const aEnd = actualEnd ? new Date(actualEnd) : (lastDate ? new Date(lastDate) : new Date());
+            if (isNaN(pEnd.getTime()) || isNaN(aEnd.getTime())) return 0;
+            const d1 = new Date(pEnd.getFullYear(), pEnd.getMonth(), pEnd.getDate());
+            const d2 = new Date(aEnd.getFullYear(), aEnd.getMonth(), aEnd.getDate());
+            if (d2 <= d1) return 0;
+            const diffTime = d2 - d1;
+            return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        function getTaskDelay(ps) {
+            if (!ps) return 0;
+            const sheetDelay = getVal(ps, 'delaydays');
+            if (sheetDelay !== undefined && sheetDelay !== null && sheetDelay !== '' && !isNaN(Number(sheetDelay))) {
+                return Math.max(0, parseInt(sheetDelay, 10));
+            }
+            return calculateDelayDays(getVal(ps, 'plannedenddate'), getVal(ps, 'actualenddate'), getVal(ps, 'lastdate'));
+        }
+
+        window.setLogFilter = function(type, value) {
+            if (!state.logFilters) state.logFilters = { date: 'all', stage: 'all', employee: 'all' };
+            state.logFilters[type] = value;
+            render();
+        };
+
+        function preparePayload(data) {
+            if (!data || typeof data !== 'object') return data;
+            const result = { ...data };
+            for (let k in data) {
+                const lowerKey = normalizeKey(k);
+                if (result[lowerKey] === undefined) {
+                    result[lowerKey] = data[k];
+                }
+                if (lowerKey === 'projectrefno') result.projectRefNo = data[k];
+                if (lowerKey === 'projectname') result.projectName = data[k];
+                if (lowerKey === 'stageid') result.stageId = data[k];
+                if (lowerKey === 'unitid') result.unitId = data[k];
+                if (lowerKey === 'employeeid') result.employeeId = data[k];
+                if (lowerKey === 'plannedstartdate') result.plannedStartDate = data[k];
+                if (lowerKey === 'plannedenddate') result.plannedEndDate = data[k];
+                if (lowerKey === 'actualstartdate') result.actualStartDate = data[k];
+                if (lowerKey === 'actualenddate') result.actualEndDate = data[k];
+                if (lowerKey === 'lastdate') result.lastDate = data[k];
+                if (lowerKey === 'stageowner') result.stageOwner = data[k];
+                if (lowerKey === 'unitstatus') result.unitStatus = data[k];
+                if (lowerKey === 'overallstatus') result.overallStatus = data[k];
+                if (lowerKey === 'workdescription') result.workDescription = data[k];
+                if (lowerKey === 'reasonfordelay') result.reasonForDelay = data[k];
+                if (lowerKey === 'actionondelay') result.actionOnDelay = data[k];
+            }
+            return result;
+        }
+
+        function getProjectProgressDetails(projectRefNo) {
+            const projectUnits = state.projectStages.filter(p => isEqual(getVal(p, 'projectrefno'), projectRefNo));
+            const plannedUnits = projectUnits.length;
+            const completedUnits = projectUnits.filter(u => getVal(u, 'unitstatus').toLowerCase() === 'completed').length;
+            const pendingUnits = projectUnits.filter(u => {
+                const s = getVal(u, 'unitstatus').toLowerCase();
+                return s !== 'completed' && s !== 'not required';
+            }).length;
+
+            const plannedProgress = plannedUnits > 0 ? Math.round((completedUnits / plannedUnits) * 100) : 0;
+
+            const totalPossibleUnits = state.units.length > 0 ? Math.max(state.units.length, plannedUnits) : plannedUnits;
+            const actualProgress = totalPossibleUnits > 0 ? Math.round((completedUnits / totalPossibleUnits) * 100) : 0;
+
+            const stagesMap = {};
+            projectUnits.forEach(u => {
+                const stageId = getVal(u, 'stageid') || 'General';
+                if (!stagesMap[stageId]) stagesMap[stageId] = { total: 0, completed: 0 };
+                stagesMap[stageId].total++;
+                if (getVal(u, 'unitstatus').toLowerCase() === 'completed') stagesMap[stageId].completed++;
+            });
+
+            const totalStages = state.stages.length > 0 ? Math.max(state.stages.length, Object.keys(stagesMap).length) : Object.keys(stagesMap).length;
+            let completedStages = 0;
+            Object.values(stagesMap).forEach(s => {
+                if (s.total > 0 && s.completed === s.total) completedStages++;
+            });
+
+            return {
+                progress: actualProgress,
+                plannedProgress,
+                actualProgress,
+                plannedUnits,
+                totalUnits: plannedUnits,
+                totalPossibleUnits,
+                completedUnits,
+                pendingUnits,
+                totalStages,
+                completedStages
+            };
+        }
+
+        function getProjectStats(projectRefNo) {
+            return getProjectProgressDetails(projectRefNo);
+        }
+
+        // --- API & Sync Engine ---
+        function updateSyncStatusUI() {
+            const syncDot = document.getElementById('sync-status-dot');
+            const syncText = document.getElementById('sync-status-text');
+            const syncRefreshIcon = document.getElementById('sync-refresh-icon');
+            const syncErrorContainer = document.getElementById('sync-error-container');
+            const syncTimeText = document.getElementById('sync-time-text');
+            
+            if (syncDot) {
+                syncDot.className = `w-2 h-2 ${state.syncStatus === 'error' ? 'bg-red-500 animate-pulse' : (state.syncStatus === 'syncing' ? 'bg-amber-500 animate-bounce' : 'bg-emerald-500')} rounded-full`;
+            }
+            if (syncText) {
+                syncText.innerText = state.syncStatus === 'error' ? "Sync Error" : (state.syncStatus === 'syncing' ? "Syncing..." : "Connected");
+            }
+            if (syncRefreshIcon) {
+                if (state.refreshing) syncRefreshIcon.classList.add('animate-spin');
+                else syncRefreshIcon.classList.remove('animate-spin');
+            }
+            if (syncErrorContainer) {
+                syncErrorContainer.innerHTML = state.error ? `
+                    <div class="mb-3 p-2 bg-red-50 rounded-lg border border-red-100">
+                        <p class="text-[10px] text-red-600 font-medium leading-tight">${state.error}</p>
+                    </div>
+                ` : '';
+            }
+            if (syncTimeText) {
+                syncTimeText.innerText = state.lastSyncTime ? `Last sync: ${new Date(state.lastSyncTime).toLocaleTimeString()}` : "Not synced yet";
+            }
+        }
+
+        async function apiRequest(method, action, data = null) {
+            state.syncStatus = 'syncing';
+            state.error = null;
+            updateSyncStatusUI();
+
+            const targetUrl = state.scriptUrl || DEFAULT_SCRIPT_URL;
+
+            try {
+                let response;
+                if (method === 'GET') {
+                    const params = new URLSearchParams({ action, _t: Date.now() });
+                    response = await fetch(`${targetUrl}?${params}`);
+                } else {
+                    const payload = preparePayload(data);
+                    const options = {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action, data: payload })
+                    };
+                    response = await fetch(targetUrl, options);
+                }
+
+                if (response && response.type === 'opaque') {
+                    state.syncStatus = 'success';
+                    state.lastSyncTime = new Date().toISOString();
+                    localStorage.setItem('nxg_lastSync', state.lastSyncTime);
+                    updateSyncStatusUI();
+                    setTimeout(() => { if (state.syncStatus === 'success') { state.syncStatus = 'idle'; updateSyncStatusUI(); } }, 2000);
+                    return { status: 'ok', message: 'Request sent successfully' };
+                }
+
+                const text = await response.text();
+                try {
+                    const result = JSON.parse(text);
+                    if (result.status === 'error') throw new Error(result.message || 'Backend execution failed');
+                    state.syncStatus = 'success';
+                    state.lastSyncTime = new Date().toISOString();
+                    localStorage.setItem('nxg_lastSync', state.lastSyncTime);
+                    updateSyncStatusUI();
+                    setTimeout(() => { if (state.syncStatus === 'success') { state.syncStatus = 'idle'; updateSyncStatusUI(); } }, 2000);
+                    return result;
+                } catch (e) {
+                    if (text.includes('<!DOCTYPE html>')) {
+                        throw new Error("Received HTML response from Apps Script. Verify Web App Deployment access is set to 'Anyone'.");
+                    }
+                    state.syncStatus = 'success';
+                    state.lastSyncTime = new Date().toISOString();
+                    localStorage.setItem('nxg_lastSync', state.lastSyncTime);
+                    updateSyncStatusUI();
+                    setTimeout(() => { if (state.syncStatus === 'success') { state.syncStatus = 'idle'; updateSyncStatusUI(); } }, 2000);
+                    return { status: 'ok', message: text };
+                }
+            } catch (err) {
+                console.error(`API Request failed (${action}):`, err);
+                state.syncStatus = 'error';
+                state.error = err.message || "Connection failed";
+                updateSyncStatusUI();
+                throw err;
+            }
+        }
+
+        async function refreshData(silent = false) {
+            if (!silent) {
+                state.refreshing = true;
+                render();
+            } else {
+                state.refreshing = true;
+                updateSyncStatusUI();
+            }
+
+            try {
+                const data = await apiRequest('GET', 'getAll');
+                if (data && data.status !== 'error') {
+                    const findKey = (obj, target) => {
+                        if (!obj) return null;
+                        const targetNorm = normalizeKey(target);
+                        for (let k in obj) {
+                            if (normalizeKey(k) === targetNorm) return obj[k];
+                        }
+                        return null;
+                    };
+
+                    const projectsData = findKey(data, 'projects');
+                    const stagesData = findKey(data, 'stages');
+                    const unitsData = findKey(data, 'units');
+                    const employeesData = findKey(data, 'employees');
+                    const projectStagesData = findKey(data, 'projectStages');
+                    const dailyLogsData = findKey(data, 'dailyLogs');
+                    const stagePlanningsData = findKey(data, 'stagePlannings');
+
+                    if (projectsData) state.projects = projectsData;
+                    if (stagesData) state.stages = stagesData;
+                    if (unitsData) state.units = unitsData;
+                    if (employeesData) state.employees = employeesData;
+                    if (projectStagesData) state.projectStages = projectStagesData;
+                    if (dailyLogsData) state.dailyLogs = dailyLogsData;
+                    if (stagePlanningsData) state.stagePlannings = stagePlanningsData;
+
+                    localStorage.setItem('nxg_projects', JSON.stringify(state.projects));
+                    localStorage.setItem('nxg_stages', JSON.stringify(state.stages));
+                    localStorage.setItem('nxg_units', JSON.stringify(state.units));
+                    localStorage.setItem('nxg_employees', JSON.stringify(state.employees));
+                    localStorage.setItem('nxg_projectStages', JSON.stringify(state.projectStages));
+                    localStorage.setItem('nxg_dailyLogs', JSON.stringify(state.dailyLogs));
+                    localStorage.setItem('nxg_stagePlannings', JSON.stringify(state.stagePlannings));
+                }
+            } catch (err) {
+                console.error("Data refresh error:", err);
+            } finally {
+                state.refreshing = false;
+                render();
+            }
+        }
+
+        async function deleteItem(sheet, key, value) {
+            if (!confirm(`Are you sure you want to delete this record from ${sheet}?`)) return;
+            const sheetToStateKey = {
+                'Projects': 'projects',
+                'Stages': 'stages',
+                'Units': 'units',
+                'Employees': 'employees',
+                'ProjectStages': 'projectStages',
+                'DailyLogs': 'dailyLogs'
+            };
+            const stateKey = sheetToStateKey[sheet];
+            if (stateKey && state[stateKey]) {
+                state[stateKey] = state[stateKey].filter(item => !isEqual(getVal(item, key), value));
+            }
+            render();
+            try {
+                await apiRequest('POST', 'deleteData', { sheet, key, value });
+                await refreshData(true);
+            } catch (err) {
+                alert("Failed to delete record: " + err.message);
+                await refreshData();
+            }
+        }
+
+        // --- Router ---
+        function navigateTo(path) {
+            window.location.hash = path;
+            state.currentPath = path;
+            render();
+        }
+
+        window.addEventListener('hashchange', () => {
+            state.currentPath = window.location.hash.slice(1) || '/';
+            render();
+        });
+
+        // --- UI Components ---
+        window.toggleMobileMenu = function() {
+            state.mobileMenuOpen = !state.mobileMenuOpen;
+            render();
+        };
+
+        function TopHeader() {
+            const current = state.currentPath.split('?')[0];
+            const isTeamActive = current === '/team';
+
+            return `
+                <header class="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3.5 sm:px-6 py-2.5 flex items-center justify-between shadow-xs">
+                    <div class="flex items-center gap-2.5 cursor-pointer" onclick="navigateTo('/')">
+                        <div class="w-9 h-9 bg-brand-500 rounded-xl flex items-center justify-center text-white shadow-md shadow-brand-200 flex-shrink-0">
+                            <i data-lucide="layers" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-base sm:text-lg font-bold tracking-tight text-slate-900 leading-none">NextGen</h1>
+                            <p class="text-[9px] font-bold text-brand-600 uppercase tracking-widest mt-0.5">Workflow</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 sm:gap-2">
+                        <!-- Team Section Button -->
+                        <a href="#/team" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${isTeamActive ? 'bg-brand-50 text-brand-600 border border-brand-200 shadow-xs' : 'bg-slate-100/80 text-slate-700 hover:bg-slate-200'}">
+                            <i data-lucide="users" class="w-3.5 h-3.5 ${isTeamActive ? 'text-brand-600' : 'text-slate-500'}"></i>
+                            <span>Team</span>
+                        </a>
+
+                        <!-- Refresh Sync Button -->
+                        <button onclick="refreshData()" class="p-2 text-slate-500 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all" title="Refresh Data">
+                            <i data-lucide="refresh-cw" class="w-4 h-4 ${state.refreshing ? 'animate-spin text-brand-600' : ''}"></i>
+                        </button>
+
+                        <!-- Menu Button -->
+                        <button onclick="window.toggleMobileMenu()" class="p-2 text-slate-700 hover:bg-slate-100 rounded-xl transition-all flex items-center justify-center relative" title="Menu & Settings">
+                            <i data-lucide="${state.mobileMenuOpen ? 'x' : 'menu'}" class="w-5 h-5"></i>
+                            ${state.syncStatus === 'error' ? '<span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>' : ''}
+                        </button>
+                    </div>
+                </header>
+
+                <!-- Mobile Slide-over Drawer for All Sections & Settings -->
+                ${state.mobileMenuOpen ? `
+                    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-40 transition-opacity" onclick="window.toggleMobileMenu()"></div>
+                    <div class="fixed top-14 right-0 bottom-0 w-80 max-w-[85vw] bg-white z-50 shadow-2xl border-l border-slate-200 p-5 overflow-y-auto flex flex-col justify-between">
+                        <div class="space-y-6">
+                            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="grid" class="w-4 h-4 text-brand-600"></i>
+                                    <span class="text-xs font-bold text-slate-900 uppercase tracking-wider">All App Sections</span>
+                                </div>
+                                <button onclick="window.toggleMobileMenu()" class="p-1 text-slate-400 hover:text-slate-600">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+
+                            <div class="space-y-1">
+                                <a href="#/" onclick="window.toggleMobileMenu()" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold ${current === '/' ? 'bg-brand-50 text-brand-600' : 'text-slate-700 hover:bg-slate-50'}">
+                                    <div class="flex items-center gap-2.5"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</div>
+                                    <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+                                </a>
+                                <a href="#/planning" onclick="window.toggleMobileMenu()" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold ${current === '/planning' ? 'bg-brand-50 text-brand-600' : 'text-slate-700 hover:bg-slate-50'}">
+                                    <div class="flex items-center gap-2.5"><i data-lucide="clock" class="w-4 h-4"></i> Stage Planning</div>
+                                    <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+                                </a>
+                                <a href="#/daily-entry" onclick="window.toggleMobileMenu()" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold ${current === '/daily-entry' ? 'bg-brand-50 text-brand-600' : 'text-slate-700 hover:bg-slate-50'}">
+                                    <div class="flex items-center gap-2.5"><i data-lucide="clipboard-list" class="w-4 h-4"></i> Daily Entry</div>
+                                    <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+                                </a>
+                                <a href="#/stages" onclick="window.toggleMobileMenu()" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold ${current === '/stages' ? 'bg-brand-50 text-brand-600' : 'text-slate-700 hover:bg-slate-50'}">
+                                    <div class="flex items-center gap-2.5"><i data-lucide="layers" class="w-4 h-4"></i> Stages & Units</div>
+                                    <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+                                </a>
+                                <a href="#/projects" onclick="window.toggleMobileMenu()" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold ${current === '/projects' ? 'bg-brand-50 text-brand-600' : 'text-slate-700 hover:bg-slate-50'}">
+                                    <div class="flex items-center gap-2.5"><i data-lucide="briefcase" class="w-4 h-4"></i> All Projects</div>
+                                    <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+                                </a>
+                                <a href="#/team" onclick="window.toggleMobileMenu()" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold ${current === '/team' ? 'bg-brand-50 text-brand-600' : 'text-slate-700 hover:bg-slate-50'}">
+                                    <div class="flex items-center gap-2.5"><i data-lucide="users" class="w-4 h-4"></i> Team Section</div>
+                                    <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+                                </a>
+                            </div>
+
+                            <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-2 h-2 ${state.syncStatus === 'error' ? 'bg-red-500 animate-pulse' : (state.syncStatus === 'syncing' ? 'bg-amber-500 animate-bounce' : 'bg-emerald-500')} rounded-full"></div>
+                                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                            ${state.syncStatus === 'error' ? "Sync Error" : (state.syncStatus === 'syncing' ? "Syncing..." : "Connected")}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="text-[10px] text-slate-400 font-medium">
+                                    ${state.lastSyncTime ? `Last sync: ${new Date(state.lastSyncTime).toLocaleTimeString()}` : "Not synced yet"}
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 pt-1">
+                                    <button onclick="handleTestConnection(); window.toggleMobileMenu();" class="py-2 px-2 bg-white text-slate-700 rounded-xl text-[10px] font-bold border border-slate-200 flex items-center justify-center gap-1.5 hover:bg-slate-100">
+                                        <i data-lucide="activity" class="w-3 h-3"></i> Test
+                                    </button>
+                                    <button onclick="showScriptUrlModal(); window.toggleMobileMenu();" class="py-2 px-2 bg-brand-50 text-brand-600 rounded-xl text-[10px] font-bold border border-brand-100 flex items-center justify-center gap-1.5 hover:bg-brand-100">
+                                        <i data-lucide="link" class="w-3 h-3"></i> Script URL
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-4 border-t border-slate-100 text-center">
+                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">NextGen Phone App</p>
+                        </div>
+                    </div>
+                ` : ''}
+            `;
+        }
+
+        function BottomNav() {
+            const current = state.currentPath.split('?')[0];
+
+            const isDash = current === '/';
+            const isPlanning = current === '/planning';
+            const isDaily = current === '/daily-entry';
+            const isStages = current === '/stages';
+            const isProjects = current === '/projects';
+
+            return `
+                <nav class="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200/80 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] px-2 py-1.5 pb-2">
+                    <div class="max-w-lg mx-auto grid grid-cols-5 items-center relative">
+                        <!-- 1. Left: Dash -->
+                        <a href="#/" class="flex flex-col items-center justify-center py-1 transition-all active:scale-95 ${isDash ? 'text-brand-600' : 'text-slate-400 hover:text-slate-700'}">
+                            <i data-lucide="layout-dashboard" class="w-5 h-5 ${isDash ? 'stroke-[2.5]' : 'stroke-2'}"></i>
+                            <span class="text-[10px] tracking-tight mt-1 ${isDash ? 'font-black text-brand-600' : 'font-semibold'}">Dash</span>
+                        </a>
+
+                        <!-- 2. Left: Stage Planning -->
+                        <a href="#/planning" class="flex flex-col items-center justify-center py-1 transition-all active:scale-95 ${isPlanning ? 'text-brand-600' : 'text-slate-400 hover:text-slate-700'}">
+                            <i data-lucide="clock" class="w-5 h-5 ${isPlanning ? 'stroke-[2.5]' : 'stroke-2'}"></i>
+                            <span class="text-[10px] tracking-tight mt-1 ${isPlanning ? 'font-black text-brand-600' : 'font-semibold'}">Planning</span>
+                        </a>
+
+                        <!-- 3. Middle Action Button: Daily Entry -->
+                        <div class="flex flex-col items-center justify-center relative -top-3">
+                            <a href="#/daily-entry" class="w-12 h-12 rounded-2xl bg-brand-500 text-white flex items-center justify-center shadow-lg shadow-brand-200 ring-4 ring-white hover:scale-105 active:scale-95 transition-all" style="background-color: var(--brand-500, #ec4899);">
+                                <i data-lucide="clipboard-list" class="w-6 h-6 stroke-[2.2] text-white"></i>
+                            </a>
+                            <span class="text-[10px] tracking-tight mt-0.5 ${isDaily ? 'font-black text-brand-600' : 'font-semibold text-slate-500'}">Daily Entry</span>
+                        </div>
+
+                        <!-- 4. Right: Stages & Units -->
+                        <a href="#/stages" class="flex flex-col items-center justify-center py-1 transition-all active:scale-95 ${isStages ? 'text-brand-600' : 'text-slate-400 hover:text-slate-700'}">
+                            <i data-lucide="layers" class="w-5 h-5 ${isStages ? 'stroke-[2.5]' : 'stroke-2'}"></i>
+                            <span class="text-[10px] tracking-tight mt-1 ${isStages ? 'font-black text-brand-600' : 'font-semibold'}">Stages</span>
+                        </a>
+
+                        <!-- 5. Right: Projects -->
+                        <a href="#/projects" class="flex flex-col items-center justify-center py-1 transition-all active:scale-95 ${isProjects ? 'text-brand-600' : 'text-slate-400 hover:text-slate-700'}">
+                            <i data-lucide="briefcase" class="w-5 h-5 ${isProjects ? 'stroke-[2.5]' : 'stroke-2'}"></i>
+                            <span class="text-[10px] tracking-tight mt-1 ${isProjects ? 'font-black text-brand-600' : 'font-semibold'}">Projects</span>
+                        </a>
+                    </div>
+                </nav>
+            `;
+        }
+
+        function Sidebar() {
+            const navItems = [
+                { icon: 'layout-dashboard', label: 'Dashboard', path: '/' },
+                { icon: 'briefcase', label: 'Projects', path: '/projects' },
+                { icon: 'clock', label: 'Project Planning', path: '/planning' },
+                { icon: 'layers', label: 'Stages & Units', path: '/stages' },
+                { icon: 'users', label: 'Team', path: '/team' },
+                { icon: 'clipboard-list', label: 'Daily Entry', path: '/daily-entry' },
+            ];
+
+            return `
+                <div class="flex items-center gap-3 mb-10 px-2">
+                    <div class="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-200 flex-shrink-0">
+                        <i data-lucide="layers" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight text-slate-900">NextGen</h1>
+                        <p class="text-xs font-semibold text-brand-600 uppercase tracking-widest">Workflow</p>
+                    </div>
+                </div>
+
+                <nav class="flex-1 space-y-1.5">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 px-4">Navigation</p>
+                    ${navItems.map(item => `
+                        <a href="#${item.path}" 
+                           class="flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-200 group ${state.currentPath.split('?')[0] === item.path ? 'bg-white shadow-sm text-brand-600 font-bold border border-slate-100' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900'}"
+                        >
+                            <div class="flex items-center gap-3">
+                                <i data-lucide="${item.icon}" class="w-5 h-5 ${state.currentPath.split('?')[0] === item.path ? 'text-brand-600' : 'group-hover:text-brand-500'}"></i>
+                                <span class="text-sm">${item.label}</span>
+                            </div>
+                            <i data-lucide="chevron-right" class="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                        </a>
+                    `).join('')}
+                </nav>
+
+                <div class="mt-auto space-y-4">
+                    <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <div id="sync-status-dot" class="w-2 h-2 ${state.syncStatus === 'error' ? 'bg-red-500 animate-pulse' : (state.syncStatus === 'syncing' ? 'bg-amber-500 animate-bounce' : 'bg-emerald-500')} rounded-full"></div>
+                                <span id="sync-status-text" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                    ${state.syncStatus === 'error' ? "Sync Error" : (state.syncStatus === 'syncing' ? "Syncing..." : "Connected")}
+                                </span>
+                            </div>
+                            <button onclick="refreshData()" class="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all" title="Refresh Data">
+                                <i id="sync-refresh-icon" data-lucide="refresh-cw" class="w-3.5 h-3.5 ${state.refreshing ? 'animate-spin' : ''}"></i>
+                            </button>
+                        </div>
+                        
+                        <div id="sync-error-container"></div>
+
+                        <div class="flex items-center gap-2 text-slate-500 mb-3">
+                            <i data-lucide="clock" class="w-3 h-3 text-slate-400"></i>
+                            <span id="sync-time-text" class="text-[10px] font-medium">
+                                ${state.lastSyncTime ? `Last sync: ${new Date(state.lastSyncTime).toLocaleTimeString()}` : "Not synced yet"}
+                            </span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="handleTestConnection()" class="flex items-center justify-center gap-1.5 py-2 px-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-bold transition-all border border-slate-200">
+                                <i data-lucide="activity" class="w-3 h-3"></i>
+                                Test
+                            </button>
+                            <button onclick="showScriptUrlModal()" class="flex items-center justify-center gap-1.5 py-2 px-1 bg-brand-50 hover:bg-brand-100 text-brand-600 rounded-xl text-[10px] font-bold transition-all border border-brand-100">
+                                <i data-lucide="link" class="w-3 h-3"></i>
+                                Script URL
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function handleTestConnection() {
+            try {
+                const res = await apiRequest('GET', 'health');
+                alert(res && res.status === 'ok' ? "Connection to Google Sheets backend is active!" : "Connected, server message: " + (res.message || "OK"));
+            } catch (err) {
+                alert("Connection failed: " + err.message);
+            }
+        }
+
+        function showScriptUrlModal() {
+            const modal = document.getElementById('modals');
+            modal.innerHTML = `
+                <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden p-8">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold text-slate-900">Google Apps Script Web App URL</h3>
+                            <button onclick="closeModal()" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl">
+                                <i data-lucide="x" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+                            Configure your deployed Google Apps Script Web App URL below to sync your sheet.
+                        </p>
+                        <form id="script-url-form" class="space-y-4">
+                            <input name="url" required value="${state.scriptUrl || DEFAULT_SCRIPT_URL}" 
+                                   class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono text-slate-700 outline-none focus:border-brand-500">
+                            <div class="flex gap-3 pt-2">
+                                <button type="button" onclick="closeModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs">Cancel</button>
+                                <button type="submit" class="flex-1 py-3 bg-brand-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-brand-200">Save URL</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('script-url-form').onsubmit = (e) => {
+                e.preventDefault();
+                const url = new FormData(e.target).get('url').trim();
+                state.scriptUrl = url;
+                localStorage.setItem('nxg_script_url', url);
+                closeModal();
+                refreshData();
+            };
+            lucide.createIcons();
+        }
+
+        function Dashboard() {
+            const activeProjects = state.projects.filter(p => {
+                const status = getVal(p, 'overallstatus').toLowerCase();
+                return status !== 'completed' && status !== 'hold';
+            });
+            const holdProjects = state.projects.filter(p => getVal(p, 'overallstatus').toLowerCase() === 'hold');
+            const completedProjects = state.projects.filter(p => getVal(p, 'overallstatus').toLowerCase() === 'completed');
+
+            const delayedTasks = state.projectStages.filter(ps => {
+                if (getVal(ps, 'unitstatus').toLowerCase() === 'completed') return false;
+                const delay = getTaskDelay(ps);
+                return delay > 0;
+            });
+
+            const stats = [
+                { label: 'Active Projects', value: activeProjects.length, icon: 'trending-up', color: 'text-blue-600', bg: 'bg-blue-50' },
+                { label: 'Completed', value: completedProjects.length, icon: 'check-circle-2', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                { label: 'On Hold', value: holdProjects.length, icon: 'clock', color: 'text-amber-600', bg: 'bg-amber-50' },
+                { label: 'Delayed Tasks', value: delayedTasks.length, icon: 'alert-circle', color: 'text-rose-600', bg: 'bg-rose-50' },
+            ];
+
+            return `
+                <div class="p-4 sm:p-8 max-w-7xl mx-auto">
+                    <header class="mb-6 sm:mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6">
+                        <div>
+                            <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Workflow Dashboard</h2>
+                            <p class="text-xs sm:text-sm text-slate-500 mt-1">Real-time status tracking and Google Sheets synchronization.</p>
+                        </div>
+                        <div class="hidden lg:flex items-center gap-3">
+                            <button onclick="refreshData()" class="flex items-center gap-2 px-6 py-3 bg-brand-600 text-white rounded-2xl font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-200 active:scale-95">
+                                <i data-lucide="refresh-cw" class="w-4 h-4 ${state.refreshing ? 'animate-spin' : ''}"></i>
+                                ${state.refreshing ? "Syncing..." : "Sync Now"}
+                            </button>
+                        </div>
+                    </header>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                        ${stats.map(stat => `
+                            <div class="glass-card p-6 flex items-center gap-5">
+                                <div class="w-14 h-14 rounded-2xl flex items-center justify-center ${stat.bg} flex-shrink-0">
+                                    <i data-lucide="${stat.icon}" class="${stat.color} w-7 h-7"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">${stat.label}</p>
+                                    <h3 class="text-2xl font-black text-slate-900">${stat.value}</h3>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2 space-y-8">
+                            <section>
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-xl font-bold text-slate-900">Active Projects</h3>
+                                    <button onclick="navigateTo('/projects')" class="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1">
+                                        View All <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                                <div class="grid grid-cols-1 gap-4">
+                                    ${activeProjects.slice(0, 5).map(project => {
+                                        const pRef = getVal(project, 'projectrefno');
+                                        const pName = getVal(project, 'projectname') || 'Unnamed Project';
+                                        const pLocation = getVal(project, 'projectsitelocation') || 'No location';
+                                        const pStatus = getVal(project, 'overallstatus') || 'Planned';
+                                        const details = getProjectProgressDetails(pRef);
+                                        return `
+                                            <div class="glass-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:border-brand-200 transition-all cursor-pointer" onclick="navigateTo('/planning?ref=${pRef}')">
+                                                <div class="flex items-center gap-4">
+                                                    <div class="w-12 h-12 bg-brand-100 rounded-2xl flex items-center justify-center text-brand-600 font-black text-lg flex-shrink-0">
+                                                        ${pName.substring(0, 2).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <h4 class="font-bold text-slate-900 leading-tight">${pName}</h4>
+                                                        <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-0.5">${pRef} • ${pLocation}</p>
+                                                        <div class="flex items-center gap-3 mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                            <span>${details.completedStages}/${details.totalStages} Stages</span>
+                                                            <span>•</span>
+                                                            <span>${details.completedUnits}/${details.totalUnits} Tasks Completed</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="flex items-center gap-6">
+                                                    <div class="text-right hidden sm:block">
+                                                        <div class="flex flex-col gap-1.5 min-w-[150px]">
+                                                            <div class="flex items-center justify-between gap-2 text-[10px] font-bold text-slate-500">
+                                                                <span>Planned:</span>
+                                                                <div class="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div class="h-full bg-blue-500 rounded-full" style="width: ${details.plannedProgress}%"></div>
+                                                                </div>
+                                                                <span class="w-7 text-right text-blue-600">${details.plannedProgress}%</span>
+                                                            </div>
+                                                            <div class="flex items-center justify-between gap-2 text-[10px] font-bold text-slate-500">
+                                                                <span>Actual:</span>
+                                                                <div class="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div class="h-full bg-emerald-500 rounded-full" style="width: ${details.actualProgress}%"></div>
+                                                                </div>
+                                                                <span class="w-7 text-right text-emerald-600">${details.actualProgress}%</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <span class="px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(pStatus)}">
+                                                        ${pStatus}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                    ${activeProjects.length === 0 ? '<div class="p-12 text-center glass-card text-slate-400 font-medium">No active projects found.</div>' : ''}
+                                </div>
+                            </section>
+
+                            <section>
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-xl font-bold text-slate-900">Delayed Tasks</h3>
+                                    <span class="px-3 py-1 bg-rose-100 text-rose-700 rounded-full text-xs font-bold">${delayedTasks.length} Delayed</span>
+                                </div>
+                                <div class="grid grid-cols-1 gap-3">
+                                    ${delayedTasks.slice(0, 5).map(task => {
+                                        const pRef = getVal(task, 'projectrefno') || '';
+                                        const project = state.projects.find(p => isEqual(getVal(p, 'projectrefno'), pRef));
+                                        const stageId = getVal(task, 'stageid') || '';
+                                        const stage = state.stages.find(s => isEqual(getVal(s, 'stageid'), stageId));
+                                        const unitId = getVal(task, 'unit') || '';
+                                        const unit = state.units.find(u => isEqual(getVal(u, 'unitid'), unitId));
+                                        const delay = getTaskDelay(task);
+                                        const owner = getVal(task, 'stageowner') || 'Unassigned';
+                                        const reason = getVal(task, 'reasonfordelay') || getVal(task, 'reasonForDelay');
+                                        const action = getVal(task, 'actionondelay') || getVal(task, 'actionOnDelay');
+                                        const taskId = getVal(task, 'id') || '';
+
+                                        const pRefEsc = pRef.replace(/'/g, "\\'");
+                                        const stageIdEsc = stageId.replace(/'/g, "\\'");
+                                        const unitIdEsc = unitId.replace(/'/g, "\\'");
+                                        const taskIdEsc = taskId.replace(/'/g, "\\'");
+
+                                        return `
+                                            <div class="glass-card p-5 border-l-4 border-l-rose-500 flex flex-col gap-3">
+                                                <div class="flex items-center justify-between gap-4">
+                                                    <div class="flex items-center gap-4">
+                                                        <div class="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center text-rose-600 flex-shrink-0">
+                                                            <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                                                        </div>
+                                                        <div>
+                                                            <h4 class="font-bold text-slate-900 text-sm">${unit ? getVal(unit, 'unitname') : (unitId || 'General Unit')}</h4>
+                                                            <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                                                                ${project ? getVal(project, 'projectname') : pRef} • ${stage ? getVal(stage, 'stagename') : stageId} • Owner: ${owner}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div class="text-right flex-shrink-0">
+                                                        <span class="text-xs font-black text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100 block">
+                                                            ${delay} Days Delay
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                ${(reason || action) ? `
+                                                    <div class="bg-amber-50/80 border border-amber-200/60 rounded-xl p-3 text-xs space-y-1">
+                                                        ${reason ? `<p class="text-slate-700"><span class="font-bold text-amber-900">Reason:</span> ${reason}</p>` : ''}
+                                                        ${action ? `<p class="text-slate-700"><span class="font-bold text-emerald-900">Action:</span> ${action}</p>` : ''}
+                                                    </div>
+                                                ` : ''}
+
+                                                <div class="flex justify-end pt-1">
+                                                    <button onclick="showTakeActionModal('${pRefEsc}', '${stageIdEsc}', '${unitIdEsc}', '${taskIdEsc}')" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-200 transition-all flex items-center gap-1.5 active:scale-95">
+                                                        <i data-lucide="${action ? 'edit-3' : 'shield-alert'}" class="w-3.5 h-3.5"></i>
+                                                        ${action ? 'Update Action' : 'Take Action'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                    ${delayedTasks.length === 0 ? '<div class="p-8 text-center glass-card text-slate-400 font-medium">No delayed tasks!</div>' : ''}
+                                </div>
+                            </section>
+                        </div>
+
+                        <div class="space-y-6">
+                            <section class="glass-card p-6">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-8 h-8 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center font-bold">
+                                            <i data-lucide="activity" class="w-4 h-4"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-lg font-bold text-slate-900">Recent Daily Activity</h3>
+                                            <p class="text-[11px] text-slate-400 font-medium">Filter logs by date, stage or staff</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <div class="relative">
+                                            <select onchange="window.setLogFilter('date', this.value)" class="appearance-none pl-3 pr-7 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer">
+                                                <option value="all" ${(state.logFilters?.date === 'all' || !state.logFilters?.date) ? 'selected' : ''}>📅 All Dates</option>
+                                                <option value="today" ${state.logFilters?.date === 'today' ? 'selected' : ''}>⚡ Today Only</option>
+                                            </select>
+                                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                                        </div>
+                                        <div class="relative">
+                                            <select onchange="window.setLogFilter('stage', this.value)" class="appearance-none pl-3 pr-7 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer">
+                                                <option value="all" ${(state.logFilters?.stage === 'all' || !state.logFilters?.stage) ? 'selected' : ''}>🎯 All Stages</option>
+                                                ${state.stages.map(s => `<option value="${getVal(s, 'stageid')}" ${isEqual(state.logFilters?.stage, getVal(s, 'stageid')) ? 'selected' : ''}>${getVal(s, 'stagename')}</option>`).join('')}
+                                            </select>
+                                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                                        </div>
+                                        <div class="relative">
+                                            <select onchange="window.setLogFilter('employee', this.value)" class="appearance-none pl-3 pr-7 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer">
+                                                <option value="all" ${(state.logFilters?.employee === 'all' || !state.logFilters?.employee) ? 'selected' : ''}>👤 All Staff</option>
+                                                ${state.employees.map(e => `<option value="${getVal(e, 'employeeid')}" ${isEqual(state.logFilters?.employee, getVal(e, 'employeeid')) ? 'selected' : ''}>${getVal(e, 'employeename')}</option>`).join('')}
+                                            </select>
+                                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="space-y-4">
+                                    ${(() => {
+                                        const logFilters = state.logFilters || { date: 'all', stage: 'all', employee: 'all' };
+                                        const filteredLogs = state.dailyLogs.filter(log => {
+                                            if (logFilters.date === 'today') {
+                                                const todayStr = new Date().toISOString().split('T')[0];
+                                                const logDateVal = getVal(log, 'date');
+                                                if (!logDateVal) return false;
+                                                try {
+                                                    const logDateStr = new Date(logDateVal).toISOString().split('T')[0];
+                                                    if (logDateStr !== todayStr) return false;
+                                                } catch (e) {
+                                                    return false;
+                                                }
+                                            }
+                                            if (logFilters.stage !== 'all') {
+                                                const stageId = getVal(log, 'stageid');
+                                                if (!isEqual(stageId, logFilters.stage)) return false;
+                                            }
+                                            if (logFilters.employee !== 'all') {
+                                                const empVal = getVal(log, 'employee') || getVal(log, 'loggedby') || getVal(log, 'employeename');
+                                                if (!isEqual(empVal, logFilters.employee)) return false;
+                                            }
+                                            return true;
+                                        });
+
+                                        return filteredLogs.slice(0, 10).map((log, i) => {
+                                            const pRef = getVal(log, 'projectrefno');
+                                            const project = state.projects.find(p => isEqual(getVal(p, 'projectrefno'), pRef));
+                                            const stageId = getVal(log, 'stageid');
+                                            const stage = state.stages.find(s => isEqual(getVal(s, 'stageid'), stageId));
+                                            const unitId = getVal(log, 'unit');
+                                            const unit = state.units.find(u => isEqual(getVal(u, 'unitid'), unitId));
+                                            const empVal = getVal(log, 'employee') || getVal(log, 'loggedby') || getVal(log, 'employeename');
+                                            const emp = state.employees.find(e => isEqual(getVal(e, 'employeeid'), empVal) || isEqual(getVal(e, 'employeename'), empVal));
+                                            const empName = emp ? getVal(emp, 'employeename') : (empVal || 'Staff');
+                                            const pName = project ? getVal(project, 'projectname') : pRef;
+                                            const sName = stage ? getVal(stage, 'stagename') : stageId;
+                                            const uName = unit ? getVal(unit, 'unitname') : unitId;
+                                            const workDesc = getVal(log, 'workdescription') || getVal(log, 'description') || getVal(log, 'notes') || 'Activity recorded';
+                                            const status = getVal(log, 'status') || 'WIP';
+                                            const logDate = formatDate(getVal(log, 'date'));
+                                            const reason = getVal(log, 'reasonfordelay');
+                                            const action = getVal(log, 'actionondelay');
+
+                                            return `
+                                                <div class="flex gap-3.5">
+                                                    <div class="relative flex flex-col items-center">
+                                                        <div class="w-3.5 h-3.5 bg-brand-500 rounded-full mt-1.5 ring-4 ring-brand-50 flex-shrink-0"></div>
+                                                        ${i !== 9 && i !== filteredLogs.length - 1 ? '<div class="w-0.5 h-full bg-slate-100 my-1"></div>' : ''}
+                                                    </div>
+                                                    <div class="flex-1 pb-2">
+                                                        <div class="flex items-center justify-between gap-2">
+                                                            <h5 class="text-xs font-bold text-slate-900">${pName} ${uName ? '• ' + uName : ''}</h5>
+                                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusColor(status)}">${status}</span>
+                                                        </div>
+                                                        <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">
+                                                            ${sName ? sName : ''} ${empName ? '• ' + empName : ''} • ${logDate}
+                                                        </p>
+                                                        <p class="text-xs text-slate-700 font-medium leading-relaxed mt-1 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                                            ${workDesc}
+                                                        </p>
+                                                        ${(reason || action) ? `
+                                                            <div class="mt-1.5 text-[10px] bg-rose-50 border border-rose-100 p-2 rounded-lg text-rose-800 space-y-0.5">
+                                                                ${reason ? `<div><span class="font-bold">Delay Reason:</span> ${reason}</div>` : ''}
+                                                                ${action ? `<div><span class="font-bold">Action Taken:</span> ${action}</div>` : ''}
+                                                            </div>
+                                                        ` : ''}
+                                                    </div>
+                                                </div>
+                                            `;
+                                        }).join('') + (filteredLogs.length === 0 ? '<p class="text-xs text-slate-400 py-4 text-center">No daily activity found matching filters.</p>' : '');
+                                    })()}
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function Projects() {
+            const filtered = state.projects.filter(p => {
+                if (state.showCompletedProjects) return true;
+                return getVal(p, 'overallstatus').toLowerCase() !== 'completed';
+            });
+
+            return `
+                <div class="p-8 max-w-7xl mx-auto">
+                    <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                        <div>
+                            <h2 class="text-3xl font-black text-slate-900 tracking-tight">Projects</h2>
+                            <p class="text-slate-500 mt-1">Manage project records and statuses.</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="state.showCompletedProjects = !state.showCompletedProjects; render();" 
+                                    class="px-4 py-3 rounded-2xl font-bold text-xs border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 flex items-center gap-2">
+                                <i data-lucide="${state.showCompletedProjects ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>
+                                ${state.showCompletedProjects ? 'Hide Completed' : 'Show Completed'}
+                            </button>
+                            <button onclick="showProjectModal()" class="bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-brand-200 transition-all active:scale-95">
+                                <i data-lucide="plus" class="w-5 h-5"></i>
+                                New Project
+                            </button>
+                        </div>
+                    </header>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${filtered.length === 0 ? `
+                            <div class="col-span-full py-16 text-center glass-card">
+                                <p class="text-slate-400 font-medium">No projects found.</p>
+                            </div>
+                        ` : filtered.map((project) => {
+                            const pRef = getVal(project, 'projectrefno');
+                            const pName = getVal(project, 'projectname') || 'Unnamed Project';
+                            const pStatus = getVal(project, 'overallstatus') || 'Planned';
+                            const pLocation = getVal(project, 'projectsitelocation');
+                            const pContact = getVal(project, 'contactpersonname');
+                            const pCompDate = getVal(project, 'projectcompletiondate');
+                            const details = getProjectProgressDetails(pRef);
+
+                            return `
+                                <div class="glass-card p-6 flex flex-col justify-between hover:border-brand-200 transition-all cursor-pointer" onclick="navigateTo('/planning?ref=${pRef}')">
+                                    <div>
+                                        <div class="flex items-start justify-between mb-4">
+                                            <div class="w-12 h-12 bg-gradient-to-br from-brand-500 to-brand-600 rounded-2xl flex items-center justify-center text-white text-xl font-black shadow-md shadow-brand-100">
+                                                ${pName.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div onclick="event.stopPropagation()">
+                                                <select onchange="updateProjectStatus('${pRef}', this.value)" 
+                                                        class="px-3 py-1 rounded-full text-[10px] font-bold border ${getStatusColor(pStatus)} uppercase tracking-wider outline-none cursor-pointer bg-white">
+                                                    ${['Hold', 'Not Started', 'WIP', 'Completed'].map(s => `<option value="${s}" ${isEqual(pStatus, s) ? 'selected' : ''}>${s}</option>`).join('')}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <h3 class="text-lg font-bold text-slate-900 mb-1 line-clamp-1">${pName}</h3>
+                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">${pRef}</p>
+
+                                        <div class="space-y-2 mb-6 text-xs text-slate-600">
+                                            <div class="flex items-center gap-2">
+                                                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-slate-400"></i>
+                                                <span class="line-clamp-1">${pLocation || 'No site location'}</span>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <i data-lucide="user" class="w-3.5 h-3.5 text-slate-400"></i>
+                                                <span>${pContact || 'No contact specified'}</span>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i>
+                                                <span>Target: ${formatDate(pCompDate)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div class="mb-4 p-3 bg-slate-50/80 rounded-xl border border-slate-100 space-y-2">
+                                            <div>
+                                                <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                                    <span>Planned Progress</span>
+                                                    <span class="text-blue-600 font-bold">${details.plannedProgress}%</span>
+                                                </div>
+                                                <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                    <div class="h-full bg-blue-500 rounded-full" style="width: ${details.plannedProgress}%"></div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                                    <span>Actual Progress</span>
+                                                    <span class="text-emerald-600 font-bold">${details.actualProgress}%</span>
+                                                </div>
+                                                <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                    <div class="h-full bg-emerald-500 rounded-full" style="width: ${details.actualProgress}%"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                                            <button onclick="event.stopPropagation(); showProjectModal(${JSON.stringify(project).replace(/"/g, '&quot;')})" 
+                                                    class="p-2.5 rounded-xl bg-slate-50 text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-all">
+                                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                            </button>
+                                            <button onclick="event.stopPropagation(); deleteItem('Projects', 'projectRefNo', '${pRef}')" 
+                                                    class="p-2.5 rounded-xl bg-slate-50 text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            </button>
+                                            <button onclick="navigateTo('/planning?ref=${pRef}')" 
+                                                    class="flex-1 ml-2 bg-slate-900 text-white py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-brand-600 transition-all">
+                                                Planning <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function updateProjectStatus(ref, status) {
+            const project = state.projects.find(p => isEqual(getVal(p, 'projectrefno'), ref));
+            if (!project) return;
+            project.overallstatus = status;
+            project.overallStatus = status;
+            render();
+            try {
+                await apiRequest('POST', 'updateProject', project);
+                await refreshData(true);
+            } catch (err) {
+                alert("Failed to update project status: " + err.message);
+                await refreshData();
+            }
+        }
+
+        function showProjectModal(project = null) {
+            const modal = document.getElementById('modals');
+            modal.innerHTML = `
+                <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden my-6">
+                        <div class="p-8">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-2xl font-bold text-slate-900">${project ? 'Edit' : 'New'} Project</h3>
+                                <button onclick="closeModal()" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl">
+                                    <i data-lucide="x" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                            <form id="project-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Project Ref No</label>
+                                    <input name="projectrefno" required value="${getVal(project, 'projectrefno') || ''}" ${project ? 'readonly' : ''}
+                                           class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-brand-500">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Project Name</label>
+                                    <input name="projectname" required value="${getVal(project, 'projectname') || ''}" 
+                                           class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-brand-500">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Received Date</label>
+                                    <input name="projectreceiveddate" type="date" required value="${toInputDate(getVal(project, 'projectreceiveddate'))}" 
+                                           class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-brand-500">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Site Location</label>
+                                    <input name="projectsitelocation" required value="${getVal(project, 'projectsitelocation') || ''}" 
+                                           class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-brand-500">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Contact Person Name</label>
+                                    <input name="contactpersonname" required value="${getVal(project, 'contactpersonname') || ''}" 
+                                           class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-brand-500">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Contact Phone</label>
+                                    <input name="contactpersonnumber" required value="${getVal(project, 'contactpersonnumber') || ''}" 
+                                           class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-brand-500">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Contact Email</label>
+                                    <input name="contactemail" type="email" required value="${getVal(project, 'contactemail') || ''}" 
+                                           class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-brand-500">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Completion Date</label>
+                                    <input name="projectcompletiondate" type="date" required value="${toInputDate(getVal(project, 'projectcompletiondate'))}" 
+                                           class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-brand-500">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Product / Service Details</label>
+                                    <textarea name="productdetails" required rows="2" 
+                                              class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-brand-500 resize-none">${getVal(project, 'productdetails') || ''}</textarea>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Overall Status</label>
+                                    <select name="overallstatus" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                        ${['Hold', 'Not Started', 'WIP', 'Completed'].map(s => `<option value="${s}" ${isEqual(getVal(project, 'overallstatus'), s) ? 'selected' : ''}>${s}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="md:col-span-2 flex gap-3 pt-4">
+                                    <button type="button" onclick="closeModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs">Cancel</button>
+                                    <button type="submit" class="flex-1 py-3 bg-brand-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-brand-200">Save Project</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('project-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const data = Object.fromEntries(formData.entries());
+                if (project) {
+                    const idx = state.projects.findIndex(p => isEqual(getVal(p, 'projectrefno'), getVal(project, 'projectrefno')));
+                    if (idx !== -1) state.projects[idx] = { ...state.projects[idx], ...data };
+                } else {
+                    state.projects.unshift(data);
+                }
+                closeModal();
+                render();
+                try {
+                    await apiRequest('POST', project ? 'updateProject' : 'addProject', data);
+                    await refreshData(true);
+                } catch (err) {
+                    alert("Failed to save project: " + err.message);
+                    await refreshData();
+                }
+            };
+            lucide.createIcons();
+        }
+
+        function ProjectPlanning() {
+            const urlParams = new URLSearchParams(state.currentPath.split('?')[1]);
+            const selectedRef = urlParams.get('ref') || '';
+
+            const projectsWithPlanning = state.projects.map(project => {
+                const pRef = getVal(project, 'projectrefno');
+                const plannings = state.projectStages.filter(p => isEqual(getVal(p, 'projectrefno'), pRef));
+                return { ...project, plannings };
+            }).filter(p => !selectedRef || isEqual(getVal(p, 'projectrefno'), selectedRef));
+
+            return `
+                <div class="p-8 max-w-7xl mx-auto">
+                    <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                        <div>
+                            <h2 class="text-3xl font-black text-slate-900 tracking-tight">Project Planning</h2>
+                            <p class="text-slate-500 mt-1">Stage deadlines, unit assignments, and progress tracking.</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <select onchange="navigateTo('/planning?ref=' + this.value)" 
+                                    class="px-4 py-3 bg-white border border-slate-200 rounded-2xl font-bold text-xs text-slate-700 outline-none shadow-sm cursor-pointer min-w-[200px]">
+                                <option value="">All Projects</option>
+                                ${state.projects.map(p => `<option value="${getVal(p, 'projectrefno')}" ${isEqual(selectedRef, getVal(p, 'projectrefno')) ? 'selected' : ''}>${getVal(p, 'projectname')}</option>`).join('')}
+                            </select>
+                            ${selectedRef ? `
+                                <button onclick="showStagePlanningModal('${selectedRef}')" class="bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-brand-200">
+                                    <i data-lucide="plus" class="w-4 h-4"></i> Add Stage Plan
+                                </button>
+                            ` : ''}
+                        </div>
+                    </header>
+
+                    <div class="space-y-8">
+                        ${projectsWithPlanning.length === 0 ? `
+                            <div class="glass-card p-16 text-center text-slate-400 font-medium">
+                                No planning data found for selected filter.
+                            </div>
+                        ` : projectsWithPlanning.map(project => {
+                            const pRef = getVal(project, 'projectrefno');
+                            const pName = getVal(project, 'projectname') || 'Unnamed Project';
+                            const stats = getProjectStats(pRef);
+
+                            return `
+                                <div class="glass-card overflow-hidden border-l-8 border-brand-500">
+                                    <div class="p-6 bg-slate-50/50 flex items-center justify-between border-b border-slate-100">
+                                        <div class="flex items-center gap-4">
+                                            <div class="w-12 h-12 bg-brand-500 rounded-2xl flex items-center justify-center text-white font-black">
+                                                ${pName.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <h3 class="text-xl font-bold text-slate-900">${pName}</h3>
+                                                <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">${pRef}</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-4">
+                                            <div class="text-right hidden sm:block space-y-1">
+                                                <div class="flex items-center justify-end gap-2 text-[10px] font-bold text-slate-500">
+                                                    <span>Planned:</span>
+                                                    <div class="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                        <div class="h-full bg-blue-500 rounded-full" style="width: ${stats.plannedProgress}%"></div>
+                                                    </div>
+                                                    <span class="w-8 text-right text-blue-600 font-bold">${stats.plannedProgress}%</span>
+                                                </div>
+                                                <div class="flex items-center justify-end gap-2 text-[10px] font-bold text-slate-500">
+                                                    <span>Actual:</span>
+                                                    <div class="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                        <div class="h-full bg-emerald-500 rounded-full" style="width: ${stats.actualProgress}%"></div>
+                                                    </div>
+                                                    <span class="w-8 text-right text-emerald-600 font-bold">${stats.actualProgress}%</span>
+                                                </div>
+                                            </div>
+                                            <button onclick="showStagePlanningModal('${pRef}')" class="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-brand-600 hover:bg-brand-50">
+                                                + Add Plan
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="p-6">
+                                        ${project.plannings.length === 0 ? `
+                                            <div class="py-8 text-center text-slate-400 text-xs font-semibold">
+                                                No stages planned for this project.
+                                            </div>
+                                        ` : (() => {
+                                            const planningsByStage = {};
+                                            project.plannings.forEach(p => {
+                                                const sId = getVal(p, 'stageid') || 'General';
+                                                if (!planningsByStage[sId]) planningsByStage[sId] = [];
+                                                planningsByStage[sId].push(p);
+                                            });
+
+                                            return `
+                                                <div class="space-y-6">
+                                                    ${Object.keys(planningsByStage).map(stageId => {
+                                                        const stagePlannings = planningsByStage[stageId];
+                                                        const stage = state.stages.find(s => isEqual(getVal(s, 'stageid'), stageId));
+                                                        const stageName = stage ? getVal(stage, 'stagename') : (stageId === 'General' ? 'General' : stageId);
+
+                                                        return `
+                                                            <div class="p-5 bg-slate-50/60 rounded-2xl border border-slate-100">
+                                                                <h4 class="font-bold text-slate-800 text-sm mb-4 flex items-center gap-2">
+                                                                    <i data-lucide="layers" class="w-4 h-4 text-brand-500"></i>
+                                                                    ${stageName}
+                                                                </h4>
+                                                                <div class="space-y-3">
+                                                                    ${stagePlannings.map(p => {
+                                                                        const uId = getVal(p, 'unit');
+                                                                        const unit = state.units.find(u => isEqual(getVal(u, 'unitid'), uId));
+                                                                        const unitName = unit ? getVal(unit, 'unitname') : (uId || 'General');
+                                                                        const uStatus = getVal(p, 'unitstatus') || 'Not Started';
+                                                                        const pEnd = getVal(p, 'plannedenddate');
+                                                                        const delay = getTaskDelay(p);
+
+                                                                        return `
+                                                                            <div class="p-4 bg-white rounded-xl border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                                                <div>
+                                                                                    <div class="flex items-center gap-2">
+                                                                                        <h5 class="font-bold text-slate-900 text-sm">${unitName}</h5>
+                                                                                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getStatusColor(uStatus)} uppercase">
+                                                                                            ${uStatus}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <p class="text-xs text-slate-400 font-medium mt-1">
+                                                                                        Owner: <span class="text-slate-700 font-bold">${getVal(p, 'stageowner') || 'Unassigned'}</span> • Deadline: ${formatDate(pEnd)}
+                                                                                    </p>
+                                                                                </div>
+                                                                                <div class="flex items-center gap-4">
+                                                                                    ${delay > 0 ? `<span class="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-lg">${delay} Days Delay</span>` : ''}
+                                                                                    <button onclick="showEditStagePlanningModal('${getVal(p, 'id')}')" class="p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-brand-600">
+                                                                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                                                                    </button>
+                                                                                    <button onclick="deleteItem('ProjectStages', 'id', '${getVal(p, 'id')}')" class="p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-rose-600">
+                                                                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        `;
+                                                                    }).join('')}
+                                                                </div>
+                                                            </div>
+                                                        `;
+                                                    }).join('')}
+                                                </div>
+                                            `;
+                                        })()}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function showStagePlanningModal(projectRefNo) {
+            const modal = document.getElementById('modals');
+            modal.innerHTML = `
+                <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden p-8">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold text-slate-900">Add Stage Plan</h3>
+                            <button onclick="closeModal()" class="p-2 text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                        </div>
+                        <form id="planning-form" class="space-y-4">
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Stage</label>
+                                <select name="stageid" required onchange="updatePlanningUnits(this.value)" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                    <option value="">Select Stage...</option>
+                                    ${state.stages.map(s => `<option value="${getVal(s, 'stageid')}">${getVal(s, 'stagename')}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Unit</label>
+                                <select id="planning-unit" name="unit" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                    <option value="">Select Unit...</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Planned Start</label>
+                                    <input name="plannedstartdate" type="date" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Planned End</label>
+                                    <input name="plannedenddate" type="date" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Stage Owner</label>
+                                <select name="stageowner" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                    <option value="">Unassigned</option>
+                                    ${state.employees.map(e => `<option value="${getVal(e, 'employeename')}">${getVal(e, 'employeename')}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="flex gap-3 pt-4">
+                                <button type="button" onclick="closeModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs">Cancel</button>
+                                <button type="submit" class="flex-1 py-3 bg-brand-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-brand-200">Save Plan</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('planning-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const data = Object.fromEntries(formData.entries());
+                data.projectrefno = projectRefNo;
+                data.lastdate = new Date().toISOString();
+                data.id = 'plan_' + Math.random().toString(36).substr(2, 7);
+
+                state.projectStages.unshift(data);
+                closeModal();
+                render();
+
+                try {
+                    await apiRequest('POST', 'addStagePlanning', data);
+                    await refreshData(true);
+                } catch (err) {
+                    alert("Failed to save plan: " + err.message);
+                    await refreshData();
+                }
+            };
+            lucide.createIcons();
+        }
+
+        function updatePlanningUnits(stageId) {
+            const unitSelect = document.getElementById('planning-unit');
+            if (!stageId) {
+                unitSelect.innerHTML = '<option value="">Select Unit...</option>';
+                return;
+            }
+            const filteredUnits = state.units.filter(u => isEqual(getVal(u, 'stageid'), stageId));
+            unitSelect.innerHTML = '<option value="">Select Unit...</option>' + 
+                filteredUnits.map(u => `<option value="${getVal(u, 'unitid')}">${getVal(u, 'unitname')}</option>`).join('');
+        }
+
+        function showEditStagePlanningModal(id) {
+            const p = state.projectStages.find(item => isEqual(getVal(item, 'id'), id));
+            if (!p) return;
+
+            const modal = document.getElementById('modals');
+            modal.innerHTML = `
+                <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden p-8">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold text-slate-900">Edit Task Plan</h3>
+                            <button onclick="closeModal()" class="p-2 text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                        </div>
+                        <form id="edit-planning-form" class="space-y-4">
+                            <input type="hidden" name="id" value="${getVal(p, 'id')}">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Planned Start</label>
+                                    <input name="plannedstartdate" type="date" required value="${toInputDate(getVal(p, 'plannedstartdate'))}" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Planned End</label>
+                                    <input name="plannedenddate" type="date" required value="${toInputDate(getVal(p, 'plannedenddate'))}" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Actual Start</label>
+                                    <input name="actualstartdate" type="date" value="${toInputDate(getVal(p, 'actualstartdate'))}" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Actual End</label>
+                                    <input name="actualenddate" type="date" value="${toInputDate(getVal(p, 'actualenddate'))}" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Stage Owner</label>
+                                    <select name="stageowner" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                        <option value="">Unassigned</option>
+                                        ${state.employees.map(e => `<option value="${getVal(e, 'employeename')}" ${isEqual(getVal(p, 'stageowner'), getVal(e, 'employeename')) ? 'selected' : ''}>${getVal(e, 'employeename')}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Unit Status</label>
+                                    <select name="unitstatus" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                        ${['Not Started', 'WIP', 'Completed', 'Hold', 'Not Required'].map(s => `<option value="${s}" ${isEqual(getVal(p, 'unitstatus'), s) ? 'selected' : ''}>${s}</option>`).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Remarks / Comments</label>
+                                <textarea name="remarks" rows="2" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none resize-none">${getVal(p, 'remarks') || getVal(p, 'comments') || ''}</textarea>
+                            </div>
+                            <div class="flex gap-3 pt-4">
+                                <button type="button" onclick="closeModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs">Cancel</button>
+                                <button type="submit" class="flex-1 py-3 bg-brand-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-brand-200">Update Plan</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('edit-planning-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const data = Object.fromEntries(formData.entries());
+
+                const idx = state.projectStages.findIndex(ps => isEqual(getVal(ps, 'id'), getVal(p, 'id')));
+                if (idx !== -1) state.projectStages[idx] = { ...state.projectStages[idx], ...data };
+                closeModal();
+                render();
+
+                try {
+                    await apiRequest('POST', 'updateStagePlanning', data);
+                    await refreshData(true);
+                } catch (err) {
+                    alert("Failed to update plan: " + err.message);
+                    await refreshData();
+                }
+            };
+            lucide.createIcons();
+        }
+
+        function showTakeActionModal(pRef, stageId, unitId, taskId) {
+            let task = null;
+            if (taskId) {
+                task = state.projectStages.find(ps => isEqual(getVal(ps, 'id'), taskId));
+            }
+            if (!task && pRef && stageId && unitId) {
+                task = state.projectStages.find(ps => 
+                    isEqual(getVal(ps, 'projectrefno'), pRef) &&
+                    isEqual(getVal(ps, 'stageid'), stageId) &&
+                    isEqual(getVal(ps, 'unit'), unitId)
+                );
+            }
+            if (!task && pRef) {
+                task = state.projectStages.find(ps => isEqual(getVal(ps, 'id'), pRef));
+            }
+            if (!task) return;
+
+            const projRef = getVal(task, 'projectrefno') || pRef;
+            const stgId = getVal(task, 'stageid') || stageId;
+            const untId = getVal(task, 'unit') || unitId;
+
+            const project = state.projects.find(p => isEqual(getVal(p, 'projectrefno'), projRef));
+            const stage = state.stages.find(s => isEqual(getVal(s, 'stageid'), stgId));
+            const unit = state.units.find(u => isEqual(getVal(u, 'unitid'), untId));
+
+            openModal(`
+                <div class="p-6 max-w-lg mx-auto">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h3 class="text-xl font-black text-slate-900">Take Action on Delayed Task</h3>
+                            <p class="text-xs text-slate-500 font-semibold mt-0.5">
+                                ${project ? getVal(project, 'projectname') : projRef} • ${stage ? getVal(stage, 'stagename') : stgId} • ${unit ? getVal(unit, 'unitname') : untId}
+                            </p>
+                        </div>
+                        <button onclick="closeModal()" class="p-2 text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                    </div>
+                    <form id="take-action-form" class="space-y-4">
+                        <div>
+                            <label class="text-xs font-bold text-slate-400 uppercase">Reason For Delay</label>
+                            <textarea name="reasonfordelay" rows="2" required placeholder="Reason for delay..." class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none resize-none">${getVal(task, 'reasonfordelay') || getVal(task, 'reasonForDelay') || ''}</textarea>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-400 uppercase">Action Taken / Plan</label>
+                            <textarea name="actionondelay" rows="2" required placeholder="Corrective action taken or planned..." class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none resize-none">${getVal(task, 'actionondelay') || getVal(task, 'actionOnDelay') || ''}</textarea>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-400 uppercase">Update Status</label>
+                            <select name="unitstatus" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                ${['WIP', 'Hold', 'Completed', 'Not Started'].map(s => `<option value="${s}" ${isEqual(getVal(task, 'unitstatus'), s) ? 'selected' : ''}>${s}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="flex gap-3 pt-4">
+                            <button type="button" onclick="closeModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs">Cancel</button>
+                            <button type="submit" class="flex-1 py-3 bg-rose-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-rose-200">Save Action</button>
+                        </div>
+                    </form>
+                </div>
+            `);
+
+            document.getElementById('take-action-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const updates = Object.fromEntries(formData.entries());
+
+                const updatedTask = { ...task, ...updates, projectrefno: projRef, stageid: stgId, unit: untId };
+
+                const idx = state.projectStages.findIndex(ps => 
+                    (getVal(task, 'id') && isEqual(getVal(ps, 'id'), getVal(task, 'id'))) ||
+                    (isEqual(getVal(ps, 'projectrefno'), projRef) && isEqual(getVal(ps, 'stageid'), stgId) && isEqual(getVal(ps, 'unit'), untId))
+                );
+                if (idx !== -1) {
+                    state.projectStages[idx] = updatedTask;
+                }
+
+                closeModal();
+                render();
+
+                try {
+                    await apiRequest('POST', 'updateStagePlanning', updatedTask);
+                    await refreshData(true);
+                } catch (err) {
+                    alert("Failed to save action: " + err.message);
+                    await refreshData();
+                }
+            };
+            lucide.createIcons();
+        }
+        window.showTakeActionModal = showTakeActionModal;
+
+        function Stages() {
+            return `
+                <div class="p-8 max-w-7xl mx-auto">
+                    <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                        <div>
+                            <h2 class="text-3xl font-black text-slate-900 tracking-tight">Stages & Units</h2>
+                            <p class="text-slate-500 mt-1">Configure project workflow stages and sub-units.</p>
+                        </div>
+                        <button onclick="showStageModal()" class="bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-brand-200">
+                            <i data-lucide="plus" class="w-4 h-4"></i> Add Stage
+                        </button>
+                    </header>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${state.stages.sort((a,b) => (parseInt(getVal(a, 'stageorder')) || 0) - (parseInt(getVal(b, 'stageorder')) || 0)).map(stage => {
+                            const sId = getVal(stage, 'stageid');
+                            const sName = getVal(stage, 'stagename') || 'Unnamed Stage';
+                            const sOrder = getVal(stage, 'stageorder') || 0;
+                            const stageUnits = state.units.filter(u => isEqual(getVal(u, 'stageid'), sId)).sort((a,b) => (parseInt(getVal(a, 'unitorder')) || 0) - (parseInt(getVal(b, 'unitorder')) || 0));
+
+                            return `
+                                <div class="glass-card p-6 flex flex-col justify-between">
+                                    <div>
+                                        <div class="flex items-center justify-between mb-4">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center text-brand-600 font-bold text-sm">
+                                                    #${sOrder}
+                                                </div>
+                                                <h3 class="text-lg font-bold text-slate-900">${sName}</h3>
+                                            </div>
+                                            <button onclick="showUnitModal('${sId}')" class="p-2 text-brand-600 hover:bg-brand-50 rounded-xl transition-all" title="Add Unit">
+                                                <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                                            </button>
+                                        </div>
+
+                                        <div class="space-y-2">
+                                            ${stageUnits.map(unit => `
+                                                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                    <span class="text-xs font-bold text-slate-700">${getVal(unit, 'unitname')}</span>
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="text-[10px] font-bold text-slate-400">Order: ${getVal(unit, 'unitorder')}</span>
+                                                        <button onclick="deleteItem('Units', 'unitId', '${getVal(unit, 'unitid')}')" class="text-slate-300 hover:text-rose-600">
+                                                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            `).join('')}
+                                            ${stageUnits.length === 0 ? '<p class="text-xs text-slate-400 text-center py-2">No units created for this stage.</p>' : ''}
+                                        </div>
+                                    </div>
+
+                                    <div class="pt-4 mt-4 border-t border-slate-100 flex justify-end">
+                                        <button onclick="deleteItem('Stages', 'stageId', '${sId}')" class="p-2 text-slate-400 hover:text-rose-600 transition-all">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function showStageModal() {
+            const modal = document.getElementById('modals');
+            modal.innerHTML = `
+                <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden p-8">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold text-slate-900">Add Stage</h3>
+                            <button onclick="closeModal()" class="p-2 text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                        </div>
+                        <form id="stage-form" class="space-y-4">
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Stage Name</label>
+                                <input name="stagename" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Order</label>
+                                <input name="stageorder" type="number" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                            </div>
+                            <div class="flex gap-3 pt-4">
+                                <button type="button" onclick="closeModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs">Cancel</button>
+                                <button type="submit" class="flex-1 py-3 bg-brand-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-brand-200">Save Stage</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('stage-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const data = Object.fromEntries(new FormData(e.target).entries());
+                data.stageid = 'stg_' + Math.random().toString(36).substr(2, 7);
+                data.stageorder = parseInt(data.stageorder);
+
+                state.stages.push(data);
+                closeModal();
+                render();
+
+                try {
+                    await apiRequest('POST', 'addStage', data);
+                    await refreshData(true);
+                } catch (err) {
+                    alert("Failed to save stage: " + err.message);
+                    await refreshData();
+                }
+            };
+            lucide.createIcons();
+        }
+
+        function showUnitModal(stageId) {
+            const modal = document.getElementById('modals');
+            modal.innerHTML = `
+                <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden p-8">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold text-slate-900">Add Unit</h3>
+                            <button onclick="closeModal()" class="p-2 text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                        </div>
+                        <form id="unit-form" class="space-y-4">
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Unit Name</label>
+                                <input name="unitname" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Order</label>
+                                <input name="unitorder" type="number" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                            </div>
+                            <div class="flex gap-3 pt-4">
+                                <button type="button" onclick="closeModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs">Cancel</button>
+                                <button type="submit" class="flex-1 py-3 bg-brand-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-brand-200">Save Unit</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('unit-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const data = Object.fromEntries(new FormData(e.target).entries());
+                data.unitid = 'un_' + Math.random().toString(36).substr(2, 7);
+                data.stageid = stageId;
+                data.unitorder = parseInt(data.unitorder);
+
+                state.units.push(data);
+                closeModal();
+                render();
+
+                try {
+                    await apiRequest('POST', 'addUnit', data);
+                    await refreshData(true);
+                } catch (err) {
+                    alert("Failed to save unit: " + err.message);
+                    await refreshData();
+                }
+            };
+            lucide.createIcons();
+        }
+
+        function Team() {
+            return `
+                <div class="p-8 max-w-7xl mx-auto">
+                    <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                        <div>
+                            <h2 class="text-3xl font-black text-slate-900 tracking-tight">Team</h2>
+                            <p class="text-slate-500 mt-1">Manage employees and project roles.</p>
+                        </div>
+                        <button onclick="showEmployeeModal()" class="bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-brand-200">
+                            <i data-lucide="plus" class="w-4 h-4"></i> Add Employee
+                        </button>
+                    </header>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${state.employees.map(emp => {
+                            const eId = getVal(emp, 'employeeid');
+                            const eName = getVal(emp, 'employeename') || 'Unnamed Employee';
+                            const role = getVal(emp, 'role') || 'Team Member';
+
+                            return `
+                                <div class="glass-card p-6 flex flex-col justify-between">
+                                    <div>
+                                        <div class="flex items-center gap-4 mb-4">
+                                            <div class="w-12 h-12 bg-brand-100 rounded-2xl flex items-center justify-center text-brand-600 font-bold text-lg">
+                                                ${eName.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <h3 class="text-base font-bold text-slate-900">${eName}</h3>
+                                                <span class="text-[10px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                                    ${role}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="space-y-2 text-xs text-slate-600 pt-2 border-t border-slate-100">
+                                            <div class="flex items-center gap-2">
+                                                <i data-lucide="mail" class="w-3.5 h-3.5 text-slate-400"></i>
+                                                <span>${getVal(emp, 'email') || 'No email'}</span>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <i data-lucide="phone" class="w-3.5 h-3.5 text-slate-400"></i>
+                                                <span>${getVal(emp, 'phone') || 'No phone'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="pt-4 mt-4 border-t border-slate-100 flex justify-end">
+                                        <button onclick="deleteItem('Employees', 'employeeId', '${eId}')" class="p-2 text-slate-400 hover:text-rose-600 transition-all">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function showEmployeeModal() {
+            const modal = document.getElementById('modals');
+            modal.innerHTML = `
+                <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden p-8">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold text-slate-900">Add Employee</h3>
+                            <button onclick="closeModal()" class="p-2 text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                        </div>
+                        <form id="employee-form" class="space-y-4">
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Employee Name</label>
+                                <input name="employeename" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Role</label>
+                                <input name="role" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Phone</label>
+                                <input name="phone" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Email</label>
+                                <input name="email" type="email" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                            </div>
+                            <div class="flex gap-3 pt-4">
+                                <button type="button" onclick="closeModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs">Cancel</button>
+                                <button type="submit" class="flex-1 py-3 bg-brand-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-brand-200">Save Employee</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('employee-form').onsubmit = async (e) => {
+                e.preventDefault();
+                const data = Object.fromEntries(new FormData(e.target).entries());
+                data.employeeid = 'emp_' + Math.random().toString(36).substr(2, 7);
+
+                state.employees.push(data);
+                closeModal();
+                render();
+
+                try {
+                    await apiRequest('POST', 'addEmployee', data);
+                    await refreshData(true);
+                } catch (err) {
+                    alert("Failed to save employee: " + err.message);
+                    await refreshData();
+                }
+            };
+            lucide.createIcons();
+        }
+
+        function DailyEntry() {
+            setTimeout(() => {
+                const form = document.getElementById('daily-entry-form');
+                if (form) {
+                    form.onsubmit = async (e) => {
+                        e.preventDefault();
+                        const btn = document.getElementById('daily-submit-btn');
+                        btn.disabled = true;
+                        btn.innerText = 'Submitting...';
+
+                        const formData = new FormData(e.target);
+                        const data = Object.fromEntries(formData.entries());
+
+                        try {
+                            state.dailyLogs.unshift(data);
+                            const psRow = state.projectStages.find(p => isEqual(getVal(p, 'projectrefno'), data.projectrefno) && isEqual(getVal(p, 'stageid'), data.stageid) && isEqual(getVal(p, 'unit'), data.unit));
+                            if (psRow) {
+                                psRow.unitstatus = data.status;
+                                psRow.unitStatus = data.status;
+                            }
+                            render();
+                            alert("Daily log submitted successfully!");
+                            e.target.reset();
+
+                            await apiRequest('POST', 'addDailyLog', data);
+                            await refreshData(true);
+                        } catch (err) {
+                            alert("Failed to submit daily log: " + err.message);
+                            await refreshData();
+                        } finally {
+                            btn.disabled = false;
+                            btn.innerText = 'Submit Daily Log';
+                        }
+                    };
+                }
+            }, 0);
+
+            return `
+                <div class="p-8 max-w-3xl mx-auto">
+                    <header class="mb-8">
+                        <h2 class="text-3xl font-black text-slate-900 tracking-tight">Daily Entry</h2>
+                        <p class="text-slate-500 mt-1">Log daily site progress and work descriptions.</p>
+                    </header>
+
+                    <div class="glass-card p-8">
+                        <form id="daily-entry-form" class="space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Date</label>
+                                    <input name="date" type="date" required value="${new Date().toISOString().split('T')[0]}" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Project</label>
+                                    <select name="projectrefno" required onchange="updateDailyEntryStages(this.value)" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                        <option value="">Select Project...</option>
+                                        ${state.projects.map(p => `<option value="${getVal(p, 'projectrefno')}">${getVal(p, 'projectname')}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Stage</label>
+                                    <select id="daily-entry-stage" name="stageid" required onchange="updateDailyEntryUnits(this.value)" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                        <option value="">Select Stage...</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Unit</label>
+                                    <select id="daily-entry-unit" name="unit" required onchange="handleUnitChange(this.value)" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                        <option value="">Select Unit...</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Employee</label>
+                                    <select name="employee" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                        <option value="">Select Employee...</option>
+                                        ${state.employees.map(e => `<option value="${getVal(e, 'employeeid')}">${getVal(e, 'employeename')}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Status</label>
+                                    <select name="status" required class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                        ${['WIP', 'Completed', 'Hold'].map(s => `<option value="${s}">${s}</option>`).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Work Description / Comments</label>
+                                <textarea name="workdescription" required rows="3" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none resize-none" placeholder="Enter site activity summary..."></textarea>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Reason For Delay (Optional)</label>
+                                    <input name="reasonfordelay" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-400 uppercase">Action On Delay (Optional)</label>
+                                    <input name="actionondelay" class="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none">
+                                </div>
+                            </div>
+                            <button type="submit" id="daily-submit-btn" class="w-full py-4 bg-brand-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-brand-200">
+                                Submit Daily Log
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateDailyEntryStages(projectRefNo) {
+            const stageSelect = document.getElementById('daily-entry-stage');
+            if (!projectRefNo) {
+                stageSelect.innerHTML = '<option value="">Select Stage...</option>';
+                document.getElementById('daily-entry-unit').innerHTML = '<option value="">Select Unit...</option>';
+                return;
+            }
+
+            const projectPlanning = state.projectStages.filter(p => isEqual(getVal(p, 'projectrefno'), projectRefNo));
+            const plannedStageRefs = [...new Set(projectPlanning.map(p => getVal(p, 'stageid')))].filter(Boolean);
+
+            let filteredStages = state.stages;
+            if (plannedStageRefs.length > 0) {
+                const matched = state.stages.filter(s => plannedStageRefs.some(ref => isEqual(ref, getVal(s, 'stageid')) || isEqual(ref, getVal(s, 'stagename'))));
+                if (matched.length > 0) filteredStages = matched;
+            }
+
+            stageSelect.innerHTML = '<option value="">Select Stage...</option>' + 
+                filteredStages.map(s => `<option value="${getVal(s, 'stageid')}">${getVal(s, 'stagename')}</option>`).join('');
+
+            document.getElementById('daily-entry-unit').innerHTML = '<option value="">Select Unit...</option>';
+        }
+
+        function updateDailyEntryUnits(stageId) {
+            const unitSelect = document.getElementById('daily-entry-unit');
+            if (!stageId) {
+                unitSelect.innerHTML = '<option value="">Select Unit...</option>';
+                return;
+            }
+
+            const filteredUnits = state.units.filter(u => isEqual(getVal(u, 'stageid'), stageId));
+            unitSelect.innerHTML = '<option value="">Select Unit...</option>' + 
+                filteredUnits.map(u => `<option value="${getVal(u, 'unitid')}">${getVal(u, 'unitname')}</option>`).join('');
+        }
+
+        function handleUnitChange(unitId) {
+            const projectRefSelect = document.querySelector('select[name="projectrefno"]');
+            const stageSelect = document.getElementById('daily-entry-stage');
+            const empSelect = document.querySelector('select[name="employee"]');
+            
+            if (!projectRefSelect || !stageSelect || !empSelect || !unitId) return;
+
+            const pRef = projectRefSelect.value;
+            const sId = stageSelect.value;
+
+            const row = state.projectStages.find(p => isEqual(getVal(p, 'projectrefno'), pRef) && isEqual(getVal(p, 'stageid'), sId) && isEqual(getVal(p, 'unit'), unitId));
+            if (row) {
+                const owner = getVal(row, 'stageowner');
+                if (owner) {
+                    const matchedEmp = state.employees.find(e => isEqual(getVal(e, 'employeename'), owner) || isEqual(getVal(e, 'employeeid'), owner));
+                    if (matchedEmp) empSelect.value = getVal(matchedEmp, 'employeeid');
+                }
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modals').innerHTML = '';
+        }
+
+        // --- Main Render Loop ---
+        function render() {
+            const topbar = document.getElementById('topbar');
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('main-content');
+            const bottomNav = document.getElementById('bottom-nav');
+
+            if (topbar) topbar.innerHTML = TopHeader();
+            if (sidebar) sidebar.innerHTML = Sidebar();
+            if (bottomNav) bottomNav.innerHTML = BottomNav();
+
+            const pathOnly = state.currentPath.split('?')[0];
+
+            let content = '';
+            switch (pathOnly) {
+                case '/': content = Dashboard(); break;
+                case '/projects': content = Projects(); break;
+                case '/planning': content = ProjectPlanning(); break;
+                case '/stages': content = Stages(); break;
+                case '/team': content = Team(); break;
+                case '/daily-entry': content = DailyEntry(); break;
+                default: content = `<div class="p-12 text-center text-slate-400"><h2 class="text-2xl font-bold">404 Not Found</h2><button onclick="navigateTo('/')" class="mt-4 text-brand-600 font-bold">Back to Dashboard</button></div>`;
+            }
+
+            mainContent.innerHTML = content;
+            lucide.createIcons();
+        }
+
+        // Initial sync
+        refreshData();
+    </script>
+</body>
+</html>
