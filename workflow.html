@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -113,7 +112,8 @@
             dailyLogs: [
                 { date: '2024-03-20', projectrefno: 'PRJ-2024-001', projectname: 'Riverview Heights', stageid: 'stg_1', unit: 'un_3', employee: 'emp_2', workdescription: 'Poured concrete for foundation curing.', status: 'WIP' },
                 { date: '2024-03-19', projectrefno: 'PRJ-2024-001', projectname: 'Riverview Heights', stageid: 'stg_1', unit: 'un_2', employee: 'emp_3', workdescription: 'Final inspection of steel reinforcement cages.', status: 'Completed' }
-            ]
+            ],
+            delayLogs: []
         };
 
         const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyQUp_zmdYG4DdAgZyiqBOUd5B7AhwBrQP7q_onF6EdfBbKjXj_sBJeoFVOm90Qrs_m/exec';
@@ -122,7 +122,11 @@
             const val = localStorage.getItem(key);
             if (val && val !== '[]' && val !== 'undefined') {
                 try {
-                    return JSON.parse(val);
+                    const parsed = JSON.parse(val);
+                    if (Array.isArray(parsed) && key === 'nxg_delayLogs') {
+                        return parsed.filter(item => !['dl_1', 'dl_2', 'dl_3'].includes(item.id));
+                    }
+                    return parsed;
                 } catch (e) {
                     return fallback;
                 }
@@ -132,13 +136,15 @@
 
         // --- Application State ---
         const state = {
-            scriptUrl: localStorage.getItem('nxg_script_url') || DEFAULT_SCRIPT_URL,
+            scriptUrl: DEFAULT_SCRIPT_URL,
             projects: getCached('nxg_projects', DEFAULT_DATA.projects),
             stages: getCached('nxg_stages', DEFAULT_DATA.stages),
             units: getCached('nxg_units', DEFAULT_DATA.units),
             employees: getCached('nxg_employees', DEFAULT_DATA.employees),
             projectStages: getCached('nxg_projectStages', DEFAULT_DATA.projectStages),
             dailyLogs: getCached('nxg_dailyLogs', DEFAULT_DATA.dailyLogs),
+            delayLogs: getCached('nxg_delayLogs', DEFAULT_DATA.delayLogs),
+            delayFilters: { project: 'ALL', stage: 'ALL', person: 'ALL', dateFrom: '', dateTo: '', activeTab: 'history' },
             stagePlannings: getCached('nxg_stagePlannings', []),
             loading: false,
             error: null,
@@ -243,11 +249,47 @@
 
         function getTaskDelay(ps) {
             if (!ps) return 0;
+
+            let delay = 0;
+
+            const plannedEnd = getVal(ps, 'plannedenddate');
+            const actualEnd = getVal(ps, 'actualenddate');
+            const plannedStart = getVal(ps, 'plannedstartdate');
+            const actualStart = getVal(ps, 'actualstartdate');
+
+            // 1. Cross-check stage-wise Planned End Date vs Actual End Date
+            if (plannedEnd && actualEnd) {
+                const pEnd = new Date(plannedEnd);
+                const aEnd = new Date(actualEnd);
+                if (!isNaN(pEnd.getTime()) && !isNaN(aEnd.getTime())) {
+                    const d1 = new Date(pEnd.getFullYear(), pEnd.getMonth(), pEnd.getDate());
+                    const d2 = new Date(aEnd.getFullYear(), aEnd.getMonth(), aEnd.getDate());
+                    if (d2 > d1) {
+                        delay = Math.max(delay, Math.floor((d2 - d1) / (1000 * 60 * 60 * 24)));
+                    }
+                }
+            }
+
+            // 2. Cross-check stage-wise Planned Start Date vs Actual Start Date
+            if (plannedStart && actualStart) {
+                const pStart = new Date(plannedStart);
+                const aStart = new Date(actualStart);
+                if (!isNaN(pStart.getTime()) && !isNaN(aStart.getTime())) {
+                    const s1 = new Date(pStart.getFullYear(), pStart.getMonth(), pStart.getDate());
+                    const s2 = new Date(aStart.getFullYear(), aStart.getMonth(), aStart.getDate());
+                    if (s2 > s1) {
+                        delay = Math.max(delay, Math.floor((s2 - s1) / (1000 * 60 * 60 * 24)));
+                    }
+                }
+            }
+
+            // 3. Fallback to explicit delaydays property if present
             const sheetDelay = getVal(ps, 'delaydays');
             if (sheetDelay !== undefined && sheetDelay !== null && sheetDelay !== '' && !isNaN(Number(sheetDelay))) {
-                return Math.max(0, parseInt(sheetDelay, 10));
+                delay = Math.max(delay, parseInt(sheetDelay, 10));
             }
-            return calculateDelayDays(getVal(ps, 'plannedenddate'), getVal(ps, 'actualenddate'), getVal(ps, 'lastdate'));
+
+            return Math.max(0, delay);
         }
 
         window.setLogFilter = function(type, value) {
@@ -339,24 +381,20 @@
             const syncTimeText = document.getElementById('sync-time-text');
             
             if (syncDot) {
-                syncDot.className = `w-2 h-2 ${state.syncStatus === 'error' ? 'bg-red-500 animate-pulse' : (state.syncStatus === 'syncing' ? 'bg-amber-500 animate-bounce' : 'bg-emerald-500')} rounded-full`;
+                syncDot.className = `w-2 h-2 ${state.syncStatus === 'syncing' ? 'bg-amber-500 animate-bounce' : 'bg-emerald-500'} rounded-full`;
             }
             if (syncText) {
-                syncText.innerText = state.syncStatus === 'error' ? "Sync Error" : (state.syncStatus === 'syncing' ? "Syncing..." : "Connected");
+                syncText.innerText = state.syncStatus === 'syncing' ? "Syncing..." : "Connected";
             }
             if (syncRefreshIcon) {
                 if (state.refreshing) syncRefreshIcon.classList.add('animate-spin');
                 else syncRefreshIcon.classList.remove('animate-spin');
             }
             if (syncErrorContainer) {
-                syncErrorContainer.innerHTML = state.error ? `
-                    <div class="mb-3 p-2 bg-red-50 rounded-lg border border-red-100">
-                        <p class="text-[10px] text-red-600 font-medium leading-tight">${state.error}</p>
-                    </div>
-                ` : '';
+                syncErrorContainer.innerHTML = '';
             }
             if (syncTimeText) {
-                syncTimeText.innerText = state.lastSyncTime ? `Last sync: ${new Date(state.lastSyncTime).toLocaleTimeString()}` : "Not synced yet";
+                syncTimeText.innerText = state.lastSyncTime ? `Last sync: ${new Date(state.lastSyncTime).toLocaleTimeString()}` : "Sync Active";
             }
         }
 
@@ -443,6 +481,12 @@
                         return null;
                     };
 
+                    const isNotBlank = (obj) => {
+                        if (!obj || typeof obj !== 'object') return false;
+                        const vals = Object.values(obj).map(v => String(v || '').trim()).filter(Boolean);
+                        return vals.length > 0;
+                    };
+
                     const projectsData = findKey(data, 'projects');
                     const stagesData = findKey(data, 'stages');
                     const unitsData = findKey(data, 'units');
@@ -451,13 +495,42 @@
                     const dailyLogsData = findKey(data, 'dailyLogs');
                     const stagePlanningsData = findKey(data, 'stagePlannings');
 
-                    if (projectsData) state.projects = projectsData;
-                    if (stagesData) state.stages = stagesData;
-                    if (unitsData) state.units = unitsData;
-                    if (employeesData) state.employees = employeesData;
-                    if (projectStagesData) state.projectStages = projectStagesData;
-                    if (dailyLogsData) state.dailyLogs = dailyLogsData;
-                    if (stagePlanningsData) state.stagePlannings = stagePlanningsData;
+                    const isDeleted = (sheet, item) => {
+                        if (!item || !isNotBlank(item)) return true;
+                        const deletedList = getCached('nxg_deletedKeys', []);
+                        return deletedList.some(d => d.sheet === sheet && (
+                            isEqual(getVal(item, d.key), d.value) ||
+                            isEqual(item[d.key], d.value) ||
+                            isEqual(getVal(item, 'employeeid'), d.value) ||
+                            isEqual(getVal(item, 'employeename'), d.value) ||
+                            isEqual(getVal(item, 'projectrefno'), d.value) ||
+                            isEqual(getVal(item, 'stageid'), d.value) ||
+                            isEqual(getVal(item, 'unitid'), d.value) ||
+                            isEqual(getVal(item, 'id'), d.value)
+                        ));
+                    };
+
+                    if (projectsData && Array.isArray(projectsData)) {
+                        state.projects = projectsData.filter(p => !isDeleted('Projects', p) && (getVal(p, 'projectrefno') || getVal(p, 'projectname')));
+                    }
+                    if (stagesData && Array.isArray(stagesData)) {
+                        state.stages = stagesData.filter(s => !isDeleted('Stages', s) && (getVal(s, 'stageid') || getVal(s, 'stagename')));
+                    }
+                    if (unitsData && Array.isArray(unitsData)) {
+                        state.units = unitsData.filter(u => !isDeleted('Units', u) && (getVal(u, 'unitid') || getVal(u, 'unitname')));
+                    }
+                    if (employeesData && Array.isArray(employeesData)) {
+                        state.employees = employeesData.filter(e => !isDeleted('Employees', e) && (getVal(e, 'employeeid') || getVal(e, 'employeename')));
+                    }
+                    if (projectStagesData && Array.isArray(projectStagesData)) {
+                        state.projectStages = projectStagesData.filter(ps => !isDeleted('ProjectStages', ps) && (getVal(ps, 'projectrefno') || getVal(ps, 'stageid') || getVal(ps, 'id')));
+                    }
+                    if (dailyLogsData && Array.isArray(dailyLogsData)) {
+                        state.dailyLogs = dailyLogsData.filter(d => !isDeleted('DailyLogs', d) && (getVal(d, 'projectrefno') || getVal(d, 'workdescription') || getVal(d, 'date')));
+                    }
+                    if (stagePlanningsData && Array.isArray(stagePlanningsData)) {
+                        state.stagePlannings = stagePlanningsData.filter(sp => !isDeleted('StagePlannings', sp));
+                    }
 
                     localStorage.setItem('nxg_projects', JSON.stringify(state.projects));
                     localStorage.setItem('nxg_stages', JSON.stringify(state.stages));
@@ -465,6 +538,7 @@
                     localStorage.setItem('nxg_employees', JSON.stringify(state.employees));
                     localStorage.setItem('nxg_projectStages', JSON.stringify(state.projectStages));
                     localStorage.setItem('nxg_dailyLogs', JSON.stringify(state.dailyLogs));
+                    localStorage.setItem('nxg_delayLogs', JSON.stringify(state.delayLogs || []));
                     localStorage.setItem('nxg_stagePlannings', JSON.stringify(state.stagePlannings));
                 }
             } catch (err) {
@@ -476,28 +550,56 @@
         }
 
         async function deleteItem(sheet, key, value) {
+            if (!value || value === 'undefined' || value === 'null') {
+                alert("Cannot delete: Missing record identifier.");
+                return;
+            }
             if (!confirm(`Are you sure you want to delete this record from ${sheet}?`)) return;
+
             const sheetToStateKey = {
                 'Projects': 'projects',
                 'Stages': 'stages',
                 'Units': 'units',
                 'Employees': 'employees',
                 'ProjectStages': 'projectStages',
-                'DailyLogs': 'dailyLogs'
+                'DailyLogs': 'dailyLogs',
+                'DelayLogs': 'delayLogs'
             };
+
+            // Store in deleted keys cache so it never reappears on sync
+            const deletedList = getCached('nxg_deletedKeys', []);
+            deletedList.push({ sheet, key, value });
+            localStorage.setItem('nxg_deletedKeys', JSON.stringify(deletedList));
+
             const stateKey = sheetToStateKey[sheet];
             if (stateKey && state[stateKey]) {
-                state[stateKey] = state[stateKey].filter(item => !isEqual(getVal(item, key), value));
+                state[stateKey] = state[stateKey].filter(item => {
+                    if (!item) return false;
+                    const itemVal = getVal(item, key) || item[key];
+                    const empVal = getVal(item, 'employeeid') || getVal(item, 'employeename');
+                    const projVal = getVal(item, 'projectrefno');
+                    const stageVal = getVal(item, 'stageid');
+                    const unitVal = getVal(item, 'unitid');
+                    const idVal = getVal(item, 'id');
+
+                    if (isEqual(itemVal, value) || isEqual(empVal, value) || isEqual(projVal, value) || isEqual(stageVal, value) || isEqual(unitVal, value) || isEqual(idVal, value)) {
+                        return false;
+                    }
+                    return true;
+                });
+                localStorage.setItem('nxg_' + stateKey, JSON.stringify(state[stateKey]));
             }
+
             render();
+
             try {
                 await apiRequest('POST', 'deleteData', { sheet, key, value });
                 await refreshData(true);
             } catch (err) {
-                alert("Failed to delete record: " + err.message);
-                await refreshData();
+                console.warn("Delete API request warning:", err);
             }
         }
+        window.deleteItem = deleteItem;
 
         // --- Router ---
         function navigateTo(path) {
@@ -534,6 +636,12 @@
                     </div>
 
                     <div class="flex items-center gap-1.5 sm:gap-2">
+                        <!-- Delay Dashboard Link Button -->
+                        <a href="#/delays" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${state.currentPath.split('?')[0] === '/delays' ? 'bg-rose-50 text-rose-600 border border-rose-200 shadow-xs' : 'bg-rose-50/80 text-rose-700 hover:bg-rose-100'}">
+                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-600"></i>
+                            <span class="hidden sm:inline">Delays</span>
+                        </a>
+
                         <!-- Team Section Button -->
                         <a href="#/team" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${isTeamActive ? 'bg-brand-50 text-brand-600 border border-brand-200 shadow-xs' : 'bg-slate-100/80 text-slate-700 hover:bg-slate-200'}">
                             <i data-lucide="users" class="w-3.5 h-3.5 ${isTeamActive ? 'text-brand-600' : 'text-slate-500'}"></i>
@@ -548,7 +656,6 @@
                         <!-- Menu Button -->
                         <button onclick="window.toggleMobileMenu()" class="p-2 text-slate-700 hover:bg-slate-100 rounded-xl transition-all flex items-center justify-center relative" title="Menu & Settings">
                             <i data-lucide="${state.mobileMenuOpen ? 'x' : 'menu'}" class="w-5 h-5"></i>
-                            ${state.syncStatus === 'error' ? '<span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>' : ''}
                         </button>
                     </div>
                 </header>
@@ -573,6 +680,10 @@
                                     <div class="flex items-center gap-2.5"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</div>
                                     <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
                                 </a>
+                                <a href="#/delays" onclick="window.toggleMobileMenu()" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold ${current === '/delays' ? 'bg-rose-50 text-rose-600' : 'text-slate-700 hover:bg-slate-50'}">
+                                    <div class="flex items-center gap-2.5"><i data-lucide="alert-triangle" class="w-4 h-4 text-rose-500"></i> Delay Dashboard</div>
+                                    <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+                                </a>
                                 <a href="#/planning" onclick="window.toggleMobileMenu()" class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold ${current === '/planning' ? 'bg-brand-50 text-brand-600' : 'text-slate-700 hover:bg-slate-50'}">
                                     <div class="flex items-center gap-2.5"><i data-lucide="clock" class="w-4 h-4"></i> Stage Planning</div>
                                     <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
@@ -595,25 +706,17 @@
                                 </a>
                             </div>
 
-                            <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
+                            <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-2">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-2">
-                                        <div class="w-2 h-2 ${state.syncStatus === 'error' ? 'bg-red-500 animate-pulse' : (state.syncStatus === 'syncing' ? 'bg-amber-500 animate-bounce' : 'bg-emerald-500')} rounded-full"></div>
+                                        <div class="w-2 h-2 ${state.syncStatus === 'syncing' ? 'bg-amber-500 animate-bounce' : 'bg-emerald-500'} rounded-full"></div>
                                         <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                            ${state.syncStatus === 'error' ? "Sync Error" : (state.syncStatus === 'syncing' ? "Syncing..." : "Connected")}
+                                            ${state.syncStatus === 'syncing' ? "Syncing..." : "Connected"}
                                         </span>
                                     </div>
                                 </div>
                                 <div class="text-[10px] text-slate-400 font-medium">
-                                    ${state.lastSyncTime ? `Last sync: ${new Date(state.lastSyncTime).toLocaleTimeString()}` : "Not synced yet"}
-                                </div>
-                                <div class="grid grid-cols-2 gap-2 pt-1">
-                                    <button onclick="handleTestConnection(); window.toggleMobileMenu();" class="py-2 px-2 bg-white text-slate-700 rounded-xl text-[10px] font-bold border border-slate-200 flex items-center justify-center gap-1.5 hover:bg-slate-100">
-                                        <i data-lucide="activity" class="w-3 h-3"></i> Test
-                                    </button>
-                                    <button onclick="showScriptUrlModal(); window.toggleMobileMenu();" class="py-2 px-2 bg-brand-50 text-brand-600 rounded-xl text-[10px] font-bold border border-brand-100 flex items-center justify-center gap-1.5 hover:bg-brand-100">
-                                        <i data-lucide="link" class="w-3 h-3"></i> Script URL
-                                    </button>
+                                    ${state.lastSyncTime ? `Last sync: ${new Date(state.lastSyncTime).toLocaleTimeString()}` : "Sync Active"}
                                 </div>
                             </div>
                         </div>
@@ -677,6 +780,7 @@
         function Sidebar() {
             const navItems = [
                 { icon: 'layout-dashboard', label: 'Dashboard', path: '/' },
+                { icon: 'alert-triangle', label: 'Delay Dashboard', path: '/delays' },
                 { icon: 'briefcase', label: 'Projects', path: '/projects' },
                 { icon: 'clock', label: 'Project Planning', path: '/planning' },
                 { icon: 'layers', label: 'Stages & Units', path: '/stages' },
@@ -712,11 +816,11 @@
 
                 <div class="mt-auto space-y-4">
                     <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
-                        <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center justify-between mb-2">
                             <div class="flex items-center gap-2">
-                                <div id="sync-status-dot" class="w-2 h-2 ${state.syncStatus === 'error' ? 'bg-red-500 animate-pulse' : (state.syncStatus === 'syncing' ? 'bg-amber-500 animate-bounce' : 'bg-emerald-500')} rounded-full"></div>
-                                <span id="sync-status-text" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                    ${state.syncStatus === 'error' ? "Sync Error" : (state.syncStatus === 'syncing' ? "Syncing..." : "Connected")}
+                                <div id="sync-status-dot" class="w-2 h-2 ${state.syncStatus === 'syncing' ? 'bg-amber-500 animate-bounce' : 'bg-emerald-500'} rounded-full"></div>
+                                <span id="sync-status-text" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                    ${state.syncStatus === 'syncing' ? "Syncing..." : "Connected"}
                                 </span>
                             </div>
                             <button onclick="refreshData()" class="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all" title="Refresh Data">
@@ -726,22 +830,11 @@
                         
                         <div id="sync-error-container"></div>
 
-                        <div class="flex items-center gap-2 text-slate-500 mb-3">
+                        <div class="flex items-center gap-2 text-slate-500">
                             <i data-lucide="clock" class="w-3 h-3 text-slate-400"></i>
                             <span id="sync-time-text" class="text-[10px] font-medium">
-                                ${state.lastSyncTime ? `Last sync: ${new Date(state.lastSyncTime).toLocaleTimeString()}` : "Not synced yet"}
+                                ${state.lastSyncTime ? `Last sync: ${new Date(state.lastSyncTime).toLocaleTimeString()}` : "Sync Active"}
                             </span>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2">
-                            <button onclick="handleTestConnection()" class="flex items-center justify-center gap-1.5 py-2 px-1 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-bold transition-all border border-slate-200">
-                                <i data-lucide="activity" class="w-3 h-3"></i>
-                                Test
-                            </button>
-                            <button onclick="showScriptUrlModal()" class="flex items-center justify-center gap-1.5 py-2 px-1 bg-brand-50 hover:bg-brand-100 text-brand-600 rounded-xl text-[10px] font-bold transition-all border border-brand-100">
-                                <i data-lucide="link" class="w-3 h-3"></i>
-                                Script URL
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -808,10 +901,10 @@
             });
 
             const stats = [
-                { label: 'Active Projects', value: activeProjects.length, icon: 'trending-up', color: 'text-blue-600', bg: 'bg-blue-50' },
-                { label: 'Completed', value: completedProjects.length, icon: 'check-circle-2', color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                { label: 'On Hold', value: holdProjects.length, icon: 'clock', color: 'text-amber-600', bg: 'bg-amber-50' },
-                { label: 'Delayed Tasks', value: delayedTasks.length, icon: 'alert-circle', color: 'text-rose-600', bg: 'bg-rose-50' },
+                { label: 'Active Projects', value: activeProjects.length, icon: 'trending-up', color: 'text-blue-600', bg: 'bg-blue-50', path: '/projects' },
+                { label: 'Completed', value: completedProjects.length, icon: 'check-circle-2', color: 'text-emerald-600', bg: 'bg-emerald-50', path: '/projects' },
+                { label: 'On Hold', value: holdProjects.length, icon: 'clock', color: 'text-amber-600', bg: 'bg-amber-50', path: '/delays' },
+                { label: 'Delayed Tasks', value: delayedTasks.length, icon: 'alert-circle', color: 'text-rose-600', bg: 'bg-rose-50', path: '/delays' },
             ];
 
             return `
@@ -831,7 +924,7 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
                         ${stats.map(stat => `
-                            <div class="glass-card p-6 flex items-center gap-5">
+                            <div onclick="navigateTo('${stat.path}')" class="glass-card p-6 flex items-center gap-5 cursor-pointer hover:border-brand-300 transition-all active:scale-98">
                                 <div class="w-14 h-14 rounded-2xl flex items-center justify-center ${stat.bg} flex-shrink-0">
                                     <i data-lucide="${stat.icon}" class="${stat.color} w-7 h-7"></i>
                                 </div>
@@ -860,7 +953,7 @@
                                         const pStatus = getVal(project, 'overallstatus') || 'Planned';
                                         const details = getProjectProgressDetails(pRef);
                                         return `
-                                            <div class="glass-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:border-brand-200 transition-all cursor-pointer" onclick="navigateTo('/planning?ref=${pRef}')">
+                                            <div class="glass-card p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 hover:border-brand-300 transition-all cursor-pointer shadow-xs" onclick="window.showProjectDetailsModal('${pRef}')">
                                                 <div class="flex items-center gap-4">
                                                     <div class="w-12 h-12 bg-brand-100 rounded-2xl flex items-center justify-center text-brand-600 font-black text-lg flex-shrink-0">
                                                         ${pName.substring(0, 2).toUpperCase()}
@@ -868,16 +961,16 @@
                                                     <div>
                                                         <h4 class="font-bold text-slate-900 leading-tight">${pName}</h4>
                                                         <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-0.5">${pRef} • ${pLocation}</p>
-                                                        <div class="flex items-center gap-3 mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                                            <span>${details.completedStages}/${details.totalStages} Stages</span>
+                                                        <div class="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                            <span class="px-2 py-0.5 bg-slate-100 rounded-md text-slate-700">${details.completedStages}/${details.totalStages} Stages</span>
                                                             <span>•</span>
-                                                            <span>${details.completedUnits}/${details.totalUnits} Tasks Completed</span>
+                                                            <span class="px-2 py-0.5 bg-slate-100 rounded-md text-slate-700">${details.completedUnits}/${details.totalUnits} Tasks Done</span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div class="flex items-center gap-6">
+                                                <div class="flex flex-wrap items-center justify-between md:justify-end gap-4 sm:gap-6 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
                                                     <div class="text-right hidden sm:block">
-                                                        <div class="flex flex-col gap-1.5 min-w-[150px]">
+                                                        <div class="flex flex-col gap-1.5 min-w-[140px]">
                                                             <div class="flex items-center justify-between gap-2 text-[10px] font-bold text-slate-500">
                                                                 <span>Planned:</span>
                                                                 <div class="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -894,9 +987,15 @@
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <span class="px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(pStatus)}">
-                                                        ${pStatus}
-                                                    </span>
+                                                    <div class="flex items-center gap-2">
+                                                        <button onclick="window.showProjectDetailsModal('${pRef}'); event.stopPropagation();" class="px-3 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-brand-200/80 shadow-xs">
+                                                            <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                                                            <span>More Details</span>
+                                                        </button>
+                                                        <span class="px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(pStatus)}">
+                                                            ${pStatus}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         `;
@@ -1897,7 +1996,7 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         ${state.employees.map(emp => {
-                            const eId = getVal(emp, 'employeeid');
+                            const eId = getVal(emp, 'employeeid') || getVal(emp, 'employeename') || getVal(emp, 'id');
                             const eName = getVal(emp, 'employeename') || 'Unnamed Employee';
                             const role = getVal(emp, 'role') || 'Team Member';
 
@@ -2156,6 +2255,996 @@
             }
         }
 
+        window.showProjectDetailsModal = function(pRef) {
+            const project = state.projects.find(p => isEqual(getVal(p, 'projectrefno'), pRef));
+            if (!project) return;
+
+            const pName = getVal(project, 'projectname') || 'Unnamed Project';
+            const pLocation = getVal(project, 'projectsitelocation') || 'No location';
+            const pStatus = getVal(project, 'overallstatus') || 'Planned';
+            const pOwner = getVal(project, 'projectowner') || 'Unassigned';
+
+            const details = getProjectProgressDetails(pRef);
+            const projectUnits = state.projectStages.filter(p => isEqual(getVal(p, 'projectrefno'), pRef));
+
+            const totalUnits = projectUnits.length;
+            const completedUnits = projectUnits.filter(u => getVal(u, 'unitstatus').toLowerCase() === 'completed').length;
+            const pendingUnits = projectUnits.filter(u => {
+                const s = getVal(u, 'unitstatus').toLowerCase();
+                return s === 'pending' || s === 'not started' || s === 'planned' || s === '';
+            }).length;
+            const inProgressUnits = projectUnits.filter(u => {
+                const s = getVal(u, 'unitstatus').toLowerCase();
+                return s === 'in progress' || s === 'wip' || s === 'ongoing';
+            }).length;
+            const holdUnits = projectUnits.filter(u => {
+                const s = getVal(u, 'unitstatus').toLowerCase();
+                return s === 'on hold' || s === 'hold' || s === 'blocked' || s === 'delayed';
+            }).length;
+
+            const stageIdsInProject = [...new Set(projectUnits.map(u => getVal(u, 'stageid')).filter(Boolean))];
+            
+            let stagesToDisplay = state.stages.filter(s => stageIdsInProject.some(sId => isEqual(sId, getVal(s, 'stageid'))));
+            if (stagesToDisplay.length === 0 && stageIdsInProject.length > 0) {
+                stagesToDisplay = stageIdsInProject.map(sId => ({ stageid: sId, stagename: `Stage ${sId}` }));
+            }
+            if (stagesToDisplay.length === 0) {
+                stagesToDisplay = state.stages;
+            }
+
+            const stageListHtml = stagesToDisplay.map((stg, stgIdx) => {
+                const sId = getVal(stg, 'stageid');
+                const matchedStage = state.stages.find(s => isEqual(getVal(s, 'stageid'), sId));
+                let sName = (matchedStage ? getVal(matchedStage, 'stagename') : '') || getVal(stg, 'stagename');
+                if (!sName || sName.toLowerCase().startsWith('stg_') || sName === sId) {
+                    sName = `Stage ${stgIdx + 1}`;
+                }
+
+                const unitsInStg = projectUnits.filter(u => isEqual(getVal(u, 'stageid'), sId));
+                const totalInStg = unitsInStg.length;
+                const completedInStg = unitsInStg.filter(u => getVal(u, 'unitstatus').toLowerCase() === 'completed').length;
+                const pendingInStg = unitsInStg.filter(u => {
+                    const s = getVal(u, 'unitstatus').toLowerCase();
+                    return s === 'pending' || s === 'not started' || s === 'planned' || s === '';
+                }).length;
+                const inProgressInStg = unitsInStg.filter(u => {
+                    const s = getVal(u, 'unitstatus').toLowerCase();
+                    return s === 'in progress' || s === 'wip' || s === 'ongoing';
+                }).length;
+                const holdInStg = unitsInStg.filter(u => {
+                    const s = getVal(u, 'unitstatus').toLowerCase();
+                    return s === 'on hold' || s === 'hold' || s === 'blocked' || s === 'delayed';
+                }).length;
+
+                const progressPct = totalInStg > 0 ? Math.round((completedInStg / totalInStg) * 100) : 0;
+
+                return `
+                    <div class="p-4 sm:p-5 bg-white border border-slate-200/90 rounded-2xl space-y-3.5 hover:border-brand-300 transition-all shadow-xs">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-xl bg-brand-100 text-brand-600 font-extrabold flex items-center justify-center text-xs">
+                                    <i data-lucide="layers" class="w-4 h-4"></i>
+                                </div>
+                                <div>
+                                    <h5 class="font-bold text-slate-900 text-sm leading-tight">${sName}</h5>
+                                    <p class="text-[10px] text-slate-400 font-semibold uppercase">${totalInStg} Total Units</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-black ${progressPct === 100 ? 'text-emerald-600' : 'text-slate-700'}">${progressPct}% Completed</span>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                            <div class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: ${progressPct}%"></div>
+                        </div>
+
+                        <!-- Unit Status Breakdown Pills -->
+                        <div class="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-bold">
+                            <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg">
+                                ✅ ${completedInStg} Completed
+                            </span>
+                            <span class="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg">
+                                ⏳ ${pendingInStg} Pending
+                            </span>
+                            <span class="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg">
+                                ⚡ ${inProgressInStg} WIP
+                            </span>
+                            <span class="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg">
+                                🛑 ${holdInStg} On Hold
+                            </span>
+                        </div>
+
+                        <!-- Units Grid -->
+                        ${unitsInStg.length > 0 ? `
+                            <div class="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                                ${unitsInStg.map(u => {
+                                    const uId = getVal(u, 'unit') || 'Unit';
+                                    const matchedUnit = state.units.find(un => isEqual(getVal(un, 'unitid'), uId));
+                                    let uDisplay = (matchedUnit ? getVal(matchedUnit, 'unitname') : '') || uId;
+                                    if (!uDisplay || uDisplay.toLowerCase().startsWith('unit_') || uDisplay.toLowerCase().startsWith('u_')) {
+                                        uDisplay = uId.replace(/^(unit_|u_)/i, 'Unit ');
+                                        if (uDisplay === 'Unit ') uDisplay = 'Unit';
+                                    }
+
+                                    const uStatus = getVal(u, 'unitstatus') || 'Pending';
+                                    let statusClass = 'bg-slate-100 text-slate-600';
+                                    if (uStatus.toLowerCase() === 'completed') statusClass = 'bg-emerald-100 text-emerald-800';
+                                    else if (['wip', 'in progress', 'ongoing'].includes(uStatus.toLowerCase())) statusClass = 'bg-blue-100 text-blue-800';
+                                    else if (['hold', 'on hold', 'blocked'].includes(uStatus.toLowerCase())) statusClass = 'bg-rose-100 text-rose-800';
+
+                                    return `
+                                        <div class="px-2.5 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between gap-1">
+                                            <span class="text-xs font-bold text-slate-800 truncate">${uDisplay}</span>
+                                            <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md ${statusClass}">${uStatus}</span>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        ` : '<p class="text-xs text-slate-400 italic">No task units assigned to this stage.</p>'}
+                    </div>
+                `;
+            }).join('');
+
+            const modalContent = `
+                <div class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden">
+                    <div class="bg-white w-full max-w-5xl h-[94vh] rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col border border-slate-200 overflow-hidden">
+                        <!-- Top Header -->
+                        <div class="px-4 sm:px-6 py-4 bg-slate-900 text-white flex items-center justify-between gap-4 flex-shrink-0">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-2xl bg-brand-500 text-white flex items-center justify-center font-black text-lg shadow-md flex-shrink-0">
+                                    ${pName.substring(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="text-base sm:text-xl font-bold text-white tracking-tight leading-tight">${pName}</h3>
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border border-white/20 bg-white/10 text-white">
+                                            ${pRef}
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-slate-300 font-medium flex items-center gap-2 mt-0.5">
+                                        <span>📍 ${pLocation}</span>
+                                        <span>•</span>
+                                        <span>👤 ${pOwner}</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="navigateTo('/planning?ref=${pRef}'); closeModal();" class="hidden sm:flex items-center gap-1.5 px-3.5 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-xs font-bold transition-all shadow-md">
+                                    <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                                    <span>Open Planning</span>
+                                </button>
+                                <button onclick="closeModal()" class="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-all">
+                                    <i data-lucide="x" class="w-6 h-6"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Scrollable Body -->
+                        <div class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 custom-scrollbar bg-slate-50/50">
+                            <!-- Metrics Grid -->
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Project Summary & Task Status</h4>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+                                    <div class="p-4 bg-white border border-slate-200/80 rounded-2xl shadow-xs">
+                                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Stages</div>
+                                        <div class="text-xl sm:text-2xl font-black text-slate-900 mt-1">${details.totalStages}</div>
+                                        <div class="text-[10px] font-bold text-emerald-600 mt-1">${details.completedStages} Completed</div>
+                                    </div>
+                                    <div class="p-4 bg-white border border-slate-200/80 rounded-2xl shadow-xs">
+                                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Tasks / Units</div>
+                                        <div class="text-xl sm:text-2xl font-black text-slate-900 mt-1">${totalUnits}</div>
+                                        <div class="text-[10px] font-bold text-slate-500 mt-1">Units Configured</div>
+                                    </div>
+                                    <div class="p-4 bg-white border border-slate-200/80 rounded-2xl shadow-xs">
+                                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Completed</div>
+                                        <div class="text-xl sm:text-2xl font-black text-emerald-600 mt-1">${completedUnits}</div>
+                                        <div class="text-[10px] font-bold text-emerald-600 mt-1">${totalUnits > 0 ? Math.round((completedUnits/totalUnits)*100) : 0}% Completed</div>
+                                    </div>
+                                    <div class="p-4 bg-white border border-slate-200/80 rounded-2xl shadow-xs">
+                                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending / WIP</div>
+                                        <div class="text-xl sm:text-2xl font-black text-amber-600 mt-1">${pendingUnits + inProgressUnits}</div>
+                                        <div class="text-[10px] font-bold text-amber-600 mt-1">${pendingUnits} Pend • ${inProgressUnits} WIP</div>
+                                    </div>
+                                    <div class="p-4 bg-white border border-slate-200/80 rounded-2xl shadow-xs col-span-2 sm:col-span-1">
+                                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">On Hold</div>
+                                        <div class="text-xl sm:text-2xl font-black text-rose-600 mt-1">${holdUnits}</div>
+                                        <div class="text-[10px] font-bold text-rose-600 mt-1">Requires Attention</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Overall Progress Meters -->
+                            <div class="bg-white p-5 border border-slate-200/80 rounded-2xl space-y-4 shadow-xs">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Overall Completion Progress</h4>
+                                    <span class="px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(pStatus)}">${pStatus}</span>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="p-3.5 bg-blue-50/50 border border-blue-100 rounded-xl space-y-2">
+                                        <div class="flex justify-between text-xs font-bold">
+                                            <span class="text-blue-700">Planned Schedule Progress</span>
+                                            <span class="text-blue-800">${details.plannedProgress}%</span>
+                                        </div>
+                                        <div class="w-full h-2.5 bg-blue-100 rounded-full overflow-hidden">
+                                            <div class="bg-blue-600 h-full rounded-full transition-all duration-500" style="width: ${details.plannedProgress}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="p-3.5 bg-emerald-50/50 border border-emerald-100 rounded-xl space-y-2">
+                                        <div class="flex justify-between text-xs font-bold">
+                                            <span class="text-emerald-700">Actual Site Progress</span>
+                                            <span class="text-emerald-800">${details.actualProgress}%</span>
+                                        </div>
+                                        <div class="w-full h-2.5 bg-emerald-100 rounded-full overflow-hidden">
+                                            <div class="bg-emerald-600 h-full rounded-full transition-all duration-500" style="width: ${details.actualProgress}%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Stage-wise Progress Section -->
+                            <div class="space-y-4">
+                                <div>
+                                    <h4 class="text-sm font-bold text-slate-900 tracking-tight">Stage-Wise Progress & Task Breakdown</h4>
+                                    <p class="text-xs text-slate-400 font-medium mt-0.5">Stage completion percentage, unit breakdown, and individual task statuses</p>
+                                </div>
+
+                                <div class="space-y-3.5">
+                                    ${stageListHtml || '<div class="p-8 text-center text-slate-400 font-medium bg-white rounded-2xl border border-slate-200">No stage breakdown available.</div>'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Footer for Mobile -->
+                        <div class="p-4 bg-white border-t border-slate-200 flex items-center justify-between sm:hidden flex-shrink-0 shadow-md">
+                            <button onclick="navigateTo('/planning?ref=${pRef}'); closeModal();" class="w-full py-3.5 px-5 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white rounded-2xl text-sm font-extrabold shadow-lg shadow-brand-500/30 text-center flex items-center justify-center gap-2.5 transition-all">
+                                <i data-lucide="clock" class="w-5 h-5 stroke-[2.2]"></i>
+                                <span>Open Full Planning</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('modals').innerHTML = modalContent;
+            lucide.createIcons();
+        };
+
+        function closeModal() {
+            document.getElementById('modals').innerHTML = '';
+        }
+
+        // --- Helper Utilities for Delay Dashboard ---
+        function getWhatsAppUrl(phone, msg) {
+            if (!phone) return '#';
+            const clean = String(phone).replace(/[^0-9]/g, '');
+            if (!clean) return '#';
+            const text = encodeURIComponent(msg || 'Hi, regarding project delay update');
+            return `https://wa.me/${clean}?text=${text}`;
+        }
+
+        function getTelUrl(phone) {
+            if (!phone) return '#';
+            const clean = String(phone).replace(/[^0-9+]/g, '');
+            return clean ? `tel:${clean}` : '#';
+        }
+
+        function formatShortDate(dateStr) {
+            if (!dateStr) return '15 Aug';
+            try {
+                const parts = String(dateStr).split('-');
+                if (parts.length === 3) {
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    const day = parseInt(parts[2], 10);
+                    const monthIdx = parseInt(parts[1], 10) - 1;
+                    if (!isNaN(day) && monthIdx >= 0 && monthIdx < 12) {
+                        return `${day} ${months[monthIdx]}`;
+                    }
+                }
+                const d = new Date(dateStr);
+                if (!isNaN(d.getTime())) {
+                    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+                }
+            } catch (e) {}
+            return dateStr;
+        }
+
+        window.setDelayFilter = function(key, value) {
+            if (!state.delayFilters) {
+                state.delayFilters = { project: 'ALL', stage: 'ALL', person: 'ALL', status: 'ALL', dateFrom: '', dateTo: '', activeTab: 'history' };
+            }
+            state.delayFilters[key] = value;
+            render();
+        };
+
+        window.resetDelayFilters = function() {
+            state.delayFilters = { project: 'ALL', stage: 'ALL', person: 'ALL', status: 'ALL', dateFrom: '', dateTo: '', activeTab: 'history' };
+            render();
+        };
+
+        window.showAddEditDelayModal = function(delayId) {
+            let existing = null;
+            if (delayId) {
+                existing = (state.delayLogs || []).find(d => isEqual(d.id, delayId));
+                if (!existing) {
+                    const ps = (state.projectStages || []).find(s => isEqual(getVal(s, 'id'), delayId));
+                    if (ps) {
+                        const delay = getTaskDelay(ps);
+                        const pRef = getVal(ps, 'projectrefno');
+                        const project = state.projects.find(p => isEqual(getVal(p, 'projectrefno'), pRef));
+                        const stage = state.stages.find(s => isEqual(getVal(s, 'stageid'), getVal(ps, 'stageid')));
+                        const owner = getVal(ps, 'stageowner') || getVal(ps, 'employee') || '';
+                        const emp = state.employees.find(e => isEqual(getVal(e, 'employeename'), owner) || isEqual(getVal(e, 'employeeid'), owner));
+
+                        existing = {
+                            id: delayId,
+                            date: getVal(ps, 'lastdate') || getVal(ps, 'actualstartdate') || new Date().toISOString().split('T')[0],
+                            projectrefno: pRef,
+                            projectname: (project ? getVal(project, 'projectname') : pRef) || pRef || 'Project',
+                            stageid: getVal(ps, 'stageid'),
+                            stagename: (stage ? getVal(stage, 'stagename') : getVal(ps, 'stageid')) || 'Stage',
+                            delaydays: delay || 1,
+                            reasonfordelay: getVal(ps, 'reasonfordelay') || getVal(ps, 'reasonForDelay') || getVal(ps, 'remarks') || '',
+                            actionondelay: getVal(ps, 'actionondelay') || getVal(ps, 'actionOnDelay') || getVal(ps, 'comments') || '',
+                            by: owner || '',
+                            phone: emp ? (getVal(emp, 'phone') || '') : '',
+                            status: getVal(ps, 'unitstatus') || 'WIP'
+                        };
+                    }
+                }
+            }
+
+            const projectOptions = state.projects.map(p => {
+                const ref = getVal(p, 'projectrefno');
+                const name = getVal(p, 'projectname');
+                const sel = existing && isEqual(existing.projectrefno, ref) ? 'selected' : '';
+                return `<option value="${ref}" ${sel}>${name} (${ref})</option>`;
+            }).join('');
+
+            const stageOptions = state.stages.map(s => {
+                const id = getVal(s, 'stageid');
+                const name = getVal(s, 'stagename');
+                const sel = existing && isEqual(existing.stageid, id) ? 'selected' : '';
+                return `<option value="${id}" ${sel}>${name}</option>`;
+            }).join('');
+
+            const defaultDate = existing ? existing.date : new Date().toISOString().split('T')[0];
+
+            let formFieldsHtml = '';
+
+            if (existing) {
+                formFieldsHtml = `
+                    <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-1.5 text-xs">
+                        <div class="flex items-center justify-between font-black text-slate-800">
+                            <span>${existing.projectname || existing.projectrefno}</span>
+                            <span class="px-2.5 py-0.5 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">${existing.delaydays || 0} Days Delay</span>
+                        </div>
+                        <p class="font-bold text-slate-600"><span class="text-slate-400">Stage:</span> ${existing.stagename || existing.stageid} &bull; <span class="text-slate-400">Date:</span> ${existing.date}</p>
+                        ${existing.by ? `<p class="font-medium text-slate-500"><span class="text-slate-400">Assigned To:</span> ${existing.by} ${existing.phone ? `(${existing.phone})` : ''}</p>` : ''}
+                    </div>
+
+                    <input type="hidden" name="projectrefno" value="${existing.projectrefno || ''}" />
+                    <input type="hidden" name="stageid" value="${existing.stageid || ''}" />
+                    <input type="hidden" name="date" value="${existing.date || defaultDate}" />
+                    <input type="hidden" name="delaydays" value="${existing.delaydays || 1}" />
+                    <input type="hidden" name="by" value="${existing.by || ''}" />
+                    <input type="hidden" name="phone" value="${existing.phone || ''}" />
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Reason for Delay</label>
+                        <textarea name="reasonfordelay" rows="2" required placeholder="e.g. Material Not Received, Weather..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500">${existing.reasonfordelay || ''}</textarea>
+                        <div class="flex flex-wrap gap-1.5 mt-1.5">
+                            <button type="button" onclick="this.form.reasonfordelay.value='Material Not Received'" class="px-2 py-0.5 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded-lg text-[10px] font-bold transition-all">+ Material Not Received</button>
+                            <button type="button" onclick="this.form.reasonfordelay.value='Heavy Rain & Site Waterlogging'" class="px-2 py-0.5 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded-lg text-[10px] font-bold transition-all">+ Heavy Rain</button>
+                            <button type="button" onclick="this.form.reasonfordelay.value='Labor Shortage'" class="px-2 py-0.5 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded-lg text-[10px] font-bold transition-all">+ Labor Shortage</button>
+                            <button type="button" onclick="this.form.reasonfordelay.value='Equipment Failure'" class="px-2 py-0.5 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded-lg text-[10px] font-bold transition-all">+ Equipment Breakdown</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Action Taken / Resolution Plan</label>
+                        <textarea name="actionondelay" rows="3" placeholder="e.g. Supplier contacted, replacement crew dispatched..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500">${existing.actionondelay || ''}</textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Status</label>
+                        <select name="status" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                            <option value="WIP" ${(existing.status || 'WIP').toUpperCase() === 'WIP' ? 'selected' : ''}>WIP (In Progress)</option>
+                            <option value="Hold" ${(existing.status || '').toUpperCase() === 'HOLD' ? 'selected' : ''}>Hold (Blocked)</option>
+                            <option value="Completed" ${(existing.status || '').toUpperCase() === 'COMPLETED' ? 'selected' : ''}>Delayed but Completed</option>
+                        </select>
+                    </div>
+                `;
+            } else {
+                formFieldsHtml = `
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Project</label>
+                        <select name="projectrefno" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                            ${projectOptions}
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Stage</label>
+                            <select name="stageid" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                                ${stageOptions}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Delay Date</label>
+                            <input type="date" name="date" value="${defaultDate}" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Delay Added (Days)</label>
+                            <input type="number" name="delaydays" min="1" max="365" value="2" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-500" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Status</label>
+                            <select name="status" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                                <option value="WIP">WIP (In Progress)</option>
+                                <option value="Hold">Hold (Blocked)</option>
+                                <option value="Completed">Delayed but Completed</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Delay Reason</label>
+                        <textarea name="reasonfordelay" rows="2" required placeholder="e.g. Material Not Received, Weather..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
+                        <div class="flex flex-wrap gap-1.5 mt-1.5">
+                            <button type="button" onclick="this.form.reasonfordelay.value='Material Not Received'" class="px-2 py-0.5 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded-lg text-[10px] font-bold transition-all">+ Material Not Received</button>
+                            <button type="button" onclick="this.form.reasonfordelay.value='Heavy Rain & Site Waterlogging'" class="px-2 py-0.5 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded-lg text-[10px] font-bold transition-all">+ Heavy Rain</button>
+                            <button type="button" onclick="this.form.reasonfordelay.value='Labor Shortage'" class="px-2 py-0.5 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded-lg text-[10px] font-bold transition-all">+ Labor Shortage</button>
+                            <button type="button" onclick="this.form.reasonfordelay.value='Equipment Failure'" class="px-2 py-0.5 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded-lg text-[10px] font-bold transition-all">+ Equipment Breakdown</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Action Taken / Resolution Plan</label>
+                        <textarea name="actionondelay" rows="2" placeholder="e.g. Supplier contacted, replacement crew dispatched..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Assigned / Reported By</label>
+                            <input type="text" name="by" placeholder="Person Name" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Contact Phone Number</label>
+                            <input type="text" name="phone" placeholder="+91 9876543210" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500" />
+                        </div>
+                    </div>
+                `;
+            }
+
+            const modalHtml = `
+                <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+                    <div class="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 my-auto animate-in fade-in zoom-in-95 duration-200">
+                        <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                                    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-black text-slate-900">${existing ? 'Update Action & Reason' : 'Log Delay Entry'}</h3>
+                                    <p class="text-xs text-slate-400 font-medium">${existing ? 'Update the resolution action and delay reason' : 'Record delay details, root cause, and action taken'}</p>
+                                </div>
+                            </div>
+                            <button onclick="closeModal()" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
+                                <i data-lucide="x" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+
+                        <form id="delay-form" onsubmit="window.saveDelayLog(event, '${existing ? existing.id : ''}')" class="space-y-4 mt-4">
+                            ${formFieldsHtml}
+
+                            <div class="pt-3 flex items-center justify-end gap-2.5 border-t border-slate-100">
+                                <button type="button" onclick="closeModal()" class="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all">Cancel</button>
+                                <button type="submit" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-200 active:scale-95 transition-all">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('modals').innerHTML = modalHtml;
+            lucide.createIcons();
+        };
+
+        window.saveDelayLog = function(e, existingId) {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+
+            const pRef = formData.get('projectrefno');
+            const project = state.projects.find(p => isEqual(getVal(p, 'projectrefno'), pRef));
+            const stage = state.stages.find(s => isEqual(getVal(s, 'stageid'), formData.get('stageid')));
+
+            const item = {
+                id: existingId || ('dl_' + Date.now()),
+                date: formData.get('date'),
+                projectrefno: pRef,
+                projectname: (project ? getVal(project, 'projectname') : pRef) || pRef,
+                stageid: formData.get('stageid'),
+                stagename: (stage ? getVal(stage, 'stagename') : formData.get('stageid')) || 'Stage',
+                unit: 'un_1',
+                unitname: 'Unit Work',
+                delaydays: parseInt(formData.get('delaydays')) || 1,
+                reasonfordelay: formData.get('reasonfordelay'),
+                actionondelay: formData.get('actionondelay'),
+                by: formData.get('by'),
+                phone: formData.get('phone'),
+                status: formData.get('status')
+            };
+
+            if (!state.delayLogs) state.delayLogs = [];
+
+            if (existingId) {
+                const idx = state.delayLogs.findIndex(d => isEqual(d.id, existingId));
+                if (idx !== -1) {
+                    state.delayLogs[idx] = item;
+                } else {
+                    state.delayLogs.unshift(item);
+                }
+
+                const psIdx = (state.projectStages || []).findIndex(s => isEqual(getVal(s, 'id'), existingId));
+                if (psIdx !== -1) {
+                    state.projectStages[psIdx]['reasonfordelay'] = item.reasonfordelay;
+                    state.projectStages[psIdx]['actionondelay'] = item.actionondelay;
+                    state.projectStages[psIdx]['unitstatus'] = item.status;
+                }
+            } else {
+                state.delayLogs.unshift(item);
+            }
+
+            localStorage.setItem('nxg_delayLogs', JSON.stringify(state.delayLogs));
+            closeModal();
+            render();
+            apiRequest({ action: 'saveDelayLog', data: item });
+        };
+
+        function Delays() {
+            if (!state.delayFilters) {
+                state.delayFilters = { project: 'ALL', stage: 'ALL', person: 'ALL', status: 'ALL', dateFrom: '', dateTo: '', activeTab: 'history' };
+            }
+            const filters = state.delayFilters;
+
+            // Gather all delays from state.delayLogs and state.projectStages
+            let rawList = (state.delayLogs || []).filter(d => (parseInt(d.delaydays) || 0) > 0);
+
+            state.projectStages.forEach(ps => {
+                const delay = getTaskDelay(ps);
+                if (delay > 0) {
+                    const reason = getVal(ps, 'reasonfordelay') || getVal(ps, 'reasonForDelay') || getVal(ps, 'remarks') || 'Site Delay';
+                    const action = getVal(ps, 'actionondelay') || getVal(ps, 'actionOnDelay') || getVal(ps, 'comments') || '';
+                    const pRef = getVal(ps, 'projectrefno');
+                    const project = state.projects.find(p => isEqual(getVal(p, 'projectrefno'), pRef));
+                    const stage = state.stages.find(s => isEqual(getVal(s, 'stageid'), getVal(ps, 'stageid')));
+                    const unit = state.units.find(u => isEqual(getVal(u, 'unitid'), getVal(ps, 'unit')));
+                    const owner = getVal(ps, 'stageowner') || getVal(ps, 'employee') || '';
+                    const emp = state.employees.find(e => isEqual(getVal(e, 'employeename'), owner) || isEqual(getVal(e, 'employeeid'), owner));
+
+                    const exists = rawList.some(d => isEqual(getVal(d, 'id'), getVal(ps, 'id')));
+                    if (!exists) {
+                        rawList.push({
+                            id: getVal(ps, 'id') || ('ps_' + Math.random().toString(36).substr(2, 6)),
+                            date: toInputDate(getVal(ps, 'actualstartdate') || getVal(ps, 'plannedenddate') || new Date().toISOString()),
+                            projectrefno: pRef,
+                            projectname: (project ? getVal(project, 'projectname') : pRef) || pRef,
+                            stageid: getVal(ps, 'stageid'),
+                            stagename: (stage ? getVal(stage, 'stagename') : getVal(ps, 'stageid')) || 'Stage',
+                            unit: getVal(ps, 'unit'),
+                            unitname: (unit ? getVal(unit, 'unitname') : getVal(ps, 'unit')) || 'Unit Work',
+                            delaydays: delay,
+                            reasonfordelay: reason,
+                            actionondelay: action,
+                            by: owner || 'Unassigned',
+                            phone: emp ? (getVal(emp, 'phone') || '') : '',
+                            status: getVal(ps, 'unitstatus') || 'WIP'
+                        });
+                    }
+                }
+            });
+
+            // Filter logic
+            let filtered = rawList.filter(d => {
+                if (filters.project && filters.project !== 'ALL' && !isEqual(d.projectrefno, filters.project)) return false;
+                if (filters.stage && filters.stage !== 'ALL' && !isEqual(d.stageid, filters.stage)) return false;
+                if (filters.person && filters.person !== 'ALL' && !isEqual((d.by || '').toLowerCase(), filters.person.toLowerCase())) return false;
+                if (filters.status && filters.status !== 'ALL') {
+                    const st = (d.status || '').toLowerCase();
+                    if (filters.status === 'COMPLETED' && st !== 'completed') return false;
+                    if (filters.status === 'WIP' && st !== 'wip' && st !== 'in progress') return false;
+                    if (filters.status === 'HOLD' && st !== 'hold') return false;
+                }
+                if (filters.dateFrom && d.date < filters.dateFrom) return false;
+                if (filters.dateTo && d.date > filters.dateTo) return false;
+                return true;
+            });
+
+            filtered.sort((a, b) => new Date(b.date || '2000-01-01') - new Date(a.date || '2000-01-01'));
+
+            const totalDelayIncidents = filtered.length;
+            const totalDelayDays = filtered.reduce((acc, curr) => acc + (parseInt(curr.delaydays) || 0), 0);
+            const delayedCompletedCount = rawList.filter(d => (d.status || '').toLowerCase() === 'completed').length;
+            const criticalDelays = filtered.filter(d => (parseInt(d.delaydays) || 0) >= 4 || (d.status || '').toLowerCase() === 'hold').length;
+
+            // Unique person list
+            const personOptionsList = [...new Set([
+                ...state.employees.map(e => getVal(e, 'employeename')),
+                ...rawList.map(d => d.by).filter(Boolean)
+            ])].filter(Boolean);
+
+            // Group tasks for "Today's tasks by whom"
+            const peopleTaskGroups = {};
+
+            personOptionsList.forEach(personName => {
+                const emp = state.employees.find(e => isEqual(getVal(e, 'employeename'), personName));
+                const phone = emp ? (getVal(emp, 'phone') || '') : '';
+                
+                // Tasks owned by this person
+                const tasks = state.projectStages.filter(ps => {
+                    const owner = getVal(ps, 'stageowner') || getVal(ps, 'employee');
+                    return isEqual(owner, personName);
+                });
+
+                // Delays owned by this person
+                const delays = rawList.filter(d => isEqual(d.by, personName));
+
+                if (tasks.length > 0 || delays.length > 0) {
+                    peopleTaskGroups[personName] = {
+                        name: personName,
+                        role: emp ? (getVal(emp, 'role') || 'Team Member') : 'Team Member',
+                        phone: phone,
+                        tasks: tasks,
+                        delays: delays
+                    };
+                }
+            });
+
+            return `
+                <div class="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+                    <!-- Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2.5">
+                                <span class="px-3 py-1 bg-rose-50 text-rose-600 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 border border-rose-200/60">
+                                    <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                                    Delay Control
+                                </span>
+                                <span class="text-xs text-slate-400 font-bold">${totalDelayIncidents} Incidents Recorded</span>
+                            </div>
+                            <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Delay Dashboard</h2>
+                            <p class="text-xs sm:text-sm text-slate-500">Track delay reasons, stage timeline cross-checks, assigned persons, and resolution status.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="window.showAddEditDelayModal()" class="w-full sm:w-auto px-5 py-3 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-2xl text-xs sm:text-sm font-black shadow-lg shadow-rose-200 flex items-center justify-center gap-2 transition-all">
+                                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                                <span>Report New Delay</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filter Control Panel -->
+                    <div class="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="filter" class="w-4 h-4 text-brand-600"></i>
+                                <span class="text-xs font-extrabold uppercase tracking-wider text-slate-700">Filter Delay History</span>
+                            </div>
+                            <button onclick="window.resetDelayFilters()" class="text-xs font-bold text-slate-400 hover:text-brand-600 flex items-center gap-1">
+                                <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Clear Filters
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+                            <!-- 1. Project Filter -->
+                            <div>
+                                <label class="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Project</label>
+                                <select onchange="window.setDelayFilter('project', this.value)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                    <option value="ALL" ${filters.project === 'ALL' ? 'selected' : ''}>All Projects</option>
+                                    ${state.projects.map(p => `<option value="${getVal(p, 'projectrefno')}" ${filters.project === getVal(p, 'projectrefno') ? 'selected' : ''}>${getVal(p, 'projectname')}</option>`).join('')}
+                                </select>
+                            </div>
+
+                            <!-- 2. Stage Filter -->
+                            <div>
+                                <label class="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Stage</label>
+                                <select onchange="window.setDelayFilter('stage', this.value)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                    <option value="ALL" ${filters.stage === 'ALL' ? 'selected' : ''}>All Stages</option>
+                                    ${state.stages.map(s => `<option value="${getVal(s, 'stageid')}" ${filters.stage === getVal(s, 'stageid') ? 'selected' : ''}>${getVal(s, 'stagename')}</option>`).join('')}
+                                </select>
+                            </div>
+
+                            <!-- 3. Person Filter -->
+                            <div>
+                                <label class="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Person / Assignee</label>
+                                <select onchange="window.setDelayFilter('person', this.value)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                    <option value="ALL" ${filters.person === 'ALL' ? 'selected' : ''}>All Persons</option>
+                                    ${personOptionsList.map(p => `<option value="${p}" ${filters.person === p ? 'selected' : ''}>${p}</option>`).join('')}
+                                </select>
+                            </div>
+
+                            <!-- 4. Delay Status Filter (Inc. Delayed but Completed) -->
+                            <div>
+                                <label class="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Delay Status</label>
+                                <select onchange="window.setDelayFilter('status', this.value)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                    <option value="ALL" ${filters.status === 'ALL' ? 'selected' : ''}>All Statuses</option>
+                                    <option value="WIP" ${filters.status === 'WIP' ? 'selected' : ''}>Active / WIP Delays</option>
+                                    <option value="COMPLETED" ${filters.status === 'COMPLETED' ? 'selected' : ''}>Delayed but Completed</option>
+                                    <option value="HOLD" ${filters.status === 'HOLD' ? 'selected' : ''}>Blocked / On Hold</option>
+                                </select>
+                            </div>
+
+                            <!-- 5. From Date -->
+                            <div>
+                                <label class="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">From Date</label>
+                                <input type="date" value="${filters.dateFrom}" onchange="window.setDelayFilter('dateFrom', this.value)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                            </div>
+
+                            <!-- 6. To Date -->
+                            <div>
+                                <label class="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">To Date</label>
+                                <input type="date" value="${filters.dateTo}" onchange="window.setDelayFilter('dateTo', this.value)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KPI Metric Cards -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+                        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold flex-shrink-0">
+                                <i data-lucide="clock" class="w-6 h-6"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Delays</p>
+                                <h3 class="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">${totalDelayIncidents}</h3>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold flex-shrink-0">
+                                <i data-lucide="calendar" class="w-6 h-6"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Delay Days</p>
+                                <h3 class="text-xl sm:text-2xl font-black text-rose-600 mt-0.5">${totalDelayDays} Days</h3>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold flex-shrink-0">
+                                <i data-lucide="check-circle" class="w-6 h-6"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Delayed but Completed</p>
+                                <h3 class="text-xl sm:text-2xl font-black text-emerald-700 mt-0.5">${delayedCompletedCount}</h3>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center font-bold flex-shrink-0">
+                                <i data-lucide="alert-circle" class="w-6 h-6"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Critical / On Hold</p>
+                                <h3 class="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">${criticalDelays}</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Navigation Sub-Tabs -->
+                    <div class="flex items-center gap-2 border-b border-slate-200 pb-1 overflow-x-auto">
+                        <button onclick="window.setDelayFilter('activeTab', 'history')" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 whitespace-nowrap ${filters.activeTab === 'history' ? 'bg-rose-600 text-white shadow-md shadow-rose-200' : 'text-slate-600 hover:bg-slate-100'}">
+                            <i data-lucide="history" class="w-4 h-4"></i>
+                            <span>Delay History</span>
+                        </button>
+                        <button onclick="window.setDelayFilter('activeTab', 'today')" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 whitespace-nowrap ${filters.activeTab === 'today' ? 'bg-rose-600 text-white shadow-md shadow-rose-200' : 'text-slate-600 hover:bg-slate-100'}">
+                            <i data-lucide="user-check" class="w-4 h-4"></i>
+                            <span>Today's Tasks by Whom</span>
+                        </button>
+                    </div>
+
+                    <!-- TAB 1: DELAY HISTORY TIMELINE -->
+                    ${filters.activeTab === 'history' ? `
+                        <div class="space-y-4">
+                            ${filtered.length === 0 ? `
+                                <div class="bg-white p-8 text-center rounded-3xl border border-slate-200 text-slate-400 space-y-2">
+                                    <i data-lucide="check-circle" class="w-10 h-10 text-emerald-500 mx-auto"></i>
+                                    <p class="text-sm font-bold text-slate-700">No delays found for current filters!</p>
+                                    <p class="text-xs text-slate-400">Try adjusting your project, stage, or status filters.</p>
+                                </div>
+                            ` : filtered.map(item => {
+                                const waUrl = getWhatsAppUrl(item.phone, `Hi ${item.by}, regarding delay on ${item.projectname} (${item.reasonfordelay})`);
+                                const callUrl = getTelUrl(item.phone);
+                                const shortDate = formatShortDate(item.date);
+                                const isCompleted = (item.status || '').toLowerCase() === 'completed';
+
+                                return `
+                                    <div class="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/90 shadow-xs hover:border-rose-300 transition-all space-y-3">
+                                        <!-- Top Row: Date, Delay Badge, Project info -->
+                                        <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                                            <div class="flex items-center gap-2">
+                                                <!-- Date Badge -->
+                                                <div class="px-3 py-1 bg-slate-900 text-white rounded-xl text-xs font-black tracking-wide flex items-center gap-1.5 shadow-xs">
+                                                    <i data-lucide="calendar" class="w-3.5 h-3.5 text-rose-400"></i>
+                                                    <span>${shortDate}</span>
+                                                </div>
+
+                                                <!-- Status Badge -->
+                                                ${isCompleted ? `
+                                                    <div class="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-black flex items-center gap-1">
+                                                        <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+                                                        <span>Delayed but Completed (${item.delaydays} Days)</span>
+                                                    </div>
+                                                ` : `
+                                                    <div class="px-3 py-1 bg-rose-100 text-rose-800 rounded-xl text-xs font-black flex items-center gap-1">
+                                                        <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                                                        <span>Delay Added: ${item.delaydays} Days</span>
+                                                    </div>
+                                                `}
+                                            </div>
+
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs font-bold text-slate-500">${item.projectname}</span>
+                                                <span class="text-slate-300">•</span>
+                                                <span class="text-xs font-extrabold text-brand-600">${item.stagename}</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Content Body: Reason, Action, By -->
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100">
+                                            <div>
+                                                <p class="text-[10px] font-black uppercase tracking-wider text-rose-500">Reason</p>
+                                                <p class="text-xs sm:text-sm font-black text-slate-800 mt-0.5">${item.reasonfordelay || 'Site Delay'}</p>
+                                            </div>
+
+                                            <div>
+                                                <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Action</p>
+                                                <p class="text-xs sm:text-sm font-bold text-slate-700 mt-0.5">${item.actionondelay || 'Resolution in progress'}</p>
+                                            </div>
+
+                                            <div>
+                                                <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">By (Person Responsible)</p>
+                                                <p class="text-xs sm:text-sm font-black text-slate-900 mt-0.5">${item.by || 'Unassigned'}</p>
+                                            </div>
+                                        </div>
+
+                                        <!-- Bottom Action Bar -->
+                                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                                            <!-- Contact details -->
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-8 h-8 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center">
+                                                    ${(item.by || 'U').charAt(0).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <p class="text-xs font-bold text-slate-900">${item.by || 'Unassigned'}</p>
+                                                    <p class="text-[10px] text-slate-400 font-medium">${item.phone || 'No Contact Number'}</p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Contact & Action Buttons -->
+                                            <div class="flex items-center gap-2">
+                                                ${item.phone ? `
+                                                    <a href="${waUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 sm:flex-initial px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-all">
+                                                        <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
+                                                        <span>WhatsApp</span>
+                                                    </a>
+
+                                                    <a href="${callUrl}" class="flex-1 sm:flex-initial px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-all">
+                                                        <i data-lucide="phone" class="w-3.5 h-3.5"></i>
+                                                        <span>Call</span>
+                                                    </a>
+                                                ` : ''}
+
+                                                <!-- Update Reason & Action Button -->
+                                                <button onclick="window.showAddEditDelayModal('${item.id}')" class="flex-1 sm:flex-initial px-3.5 py-2 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all border border-slate-200">
+                                                    <i data-lucide="edit-3" class="w-3.5 h-3.5 text-slate-500"></i>
+                                                    <span>Update Action</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    ` : ''}
+
+                    <!-- TAB 2: TODAY'S TASKS BY WHOM -->
+                    ${filters.activeTab === 'today' ? `
+                        <div class="space-y-6">
+                            <div class="bg-amber-50 border border-amber-200/80 p-4 rounded-2xl flex items-center justify-between gap-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold">
+                                        <i data-lucide="user-check" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm font-extrabold text-amber-900">Today's Assigned Work by Whom</h4>
+                                        <p class="text-xs text-amber-700">Filter and manage daily task responsibilities, delay statuses, and direct team contacts.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4">
+                                ${Object.keys(peopleTaskGroups).length === 0 ? `
+                                    <div class="bg-white p-8 text-center rounded-3xl border border-slate-200 text-slate-400">
+                                        No task assignments found.
+                                    </div>
+                                ` : Object.values(peopleTaskGroups).map(group => {
+                                    const waUrl = getWhatsAppUrl(group.phone, `Hi ${group.name}, regarding your assigned tasks today.`);
+                                    const callUrl = getTelUrl(group.phone);
+
+                                    return `
+                                        <div class="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
+                                            <!-- Person Header -->
+                                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                                                <div class="flex items-center gap-3">
+                                                    <div class="w-10 h-10 rounded-2xl bg-brand-500 text-white font-black text-sm flex items-center justify-center shadow-md shadow-brand-200">
+                                                        ${group.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <h3 class="text-base font-black text-slate-900">${group.name}</h3>
+                                                        <p class="text-xs text-slate-400 font-medium">${group.role} • ${group.phone}</p>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Contact Actions -->
+                                                <div class="flex items-center gap-2">
+                                                    <a href="${waUrl}" target="_blank" rel="noopener noreferrer" class="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all">
+                                                        <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
+                                                        <span>WhatsApp</span>
+                                                    </a>
+                                                    <a href="${callUrl}" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all">
+                                                        <i data-lucide="phone" class="w-3.5 h-3.5"></i>
+                                                        <span>Call</span>
+                                                    </a>
+                                                </div>
+                                            </div>
+
+                                            <!-- Assigned Tasks List -->
+                                            <div class="space-y-2.5">
+                                                <h4 class="text-xs font-black uppercase tracking-wider text-slate-400">Active Stage / Unit Assignments (${group.tasks.length})</h4>
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                                    ${group.tasks.map(t => {
+                                                        const pRef = getVal(t, 'projectrefno');
+                                                        const pObj = state.projects.find(p => isEqual(getVal(p, 'projectrefno'), pRef));
+                                                        const delay = getTaskDelay(t);
+
+                                                        return `
+                                                            <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-2">
+                                                                <div>
+                                                                    <p class="text-xs font-black text-slate-900">${pObj ? getVal(pObj, 'projectname') : pRef}</p>
+                                                                    <p class="text-[11px] text-slate-500 font-medium">${getVal(t, 'stageid')} - Status: <span class="font-bold text-slate-800">${getVal(t, 'unitstatus') || 'WIP'}</span></p>
+                                                                </div>
+                                                                ${delay > 0 ? `
+                                                                    <span class="px-2.5 py-1 bg-rose-100 text-rose-700 rounded-lg text-[10px] font-black flex-shrink-0">
+                                                                        ${delay} Days Delay
+                                                                    </span>
+                                                                ` : `
+                                                                    <span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black flex-shrink-0">
+                                                                        On Track
+                                                                    </span>
+                                                                `}
+                                                            </div>
+                                                        `;
+                                                    }).join('')}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
         function closeModal() {
             document.getElementById('modals').innerHTML = '';
         }
@@ -2176,6 +3265,7 @@
             let content = '';
             switch (pathOnly) {
                 case '/': content = Dashboard(); break;
+                case '/delays': content = Delays(); break;
                 case '/projects': content = Projects(); break;
                 case '/planning': content = ProjectPlanning(); break;
                 case '/stages': content = Stages(); break;
